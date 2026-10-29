@@ -88,12 +88,12 @@ El "cerebro" de la nube: la webapp, la cola que crea, publica y elimina instanci
 **Verificación:** pruebas de tabla con Fakes para cada camino feliz y cada fallo (por ejemplo, si `DNS.Agregar` falla: estado `error`, y Eliminar luego llama a `Hipervisor.Eliminar`). Pruebas con `-race`.
 **Commit:** `feat(instancias): orchestrate create, publish and delete through a single worker`
 
-### A5. Servidor web y rutas ⬜ (H1)
+### A5. Servidor web y rutas ✅ (H1)
 **Meta:** la webapp completa con Fakes (`make simular`).
 1. Rutas:
    - `GET /` → dashboard (la plantilla de B; mientras no exista, usar una tabla simple).
    - `POST /instancias` (campo `nombre`) → botón **Aceptar**.
-   - `POST /instancias/{nombre}/contenido` (campo `archivo`, multipart) → botón **Publicar**. Usa `http.MaxBytesReader(max_zip_mb)`, guarda en un archivo temporal y llama a `publicar.ValidarZip` de C (mientras no exista, a un stub).
+   - `POST /contenido` (campos `nombre` y `archivo`, multipart) → botón **Publicar**. Ruta fija para que un solo formulario, como en la figura, sirva para los dos botones sin JavaScript. Usa `http.MaxBytesReader(max_zip_mb)`, guarda en un archivo temporal y llama a `publicar.ValidarZip` de C (mientras no exista, a un stub).
    - `POST /instancias/{nombre}/eliminar` → botón **Eliminar**.
    - `GET /api/instancias` → JSON para que el dashboard se actualice solo.
 2. Patrón POST → redirección 303 → GET, con un mensaje flash ("Instancia paisajes en creación"). Si hay un error de validación, 422 y se vuelve a mostrar el formulario con el error en el campo.

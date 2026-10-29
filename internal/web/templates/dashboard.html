@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {{if .Refrescar}}<meta http-equiv="refresh" content="3">{{end}}
+  <title>Gestión de páginas y aplicaciones web</title>
+  <!-- Provisional version from phase A5. Part B replaces it in B7 using the Vista fields. -->
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0 auto; max-width: 960px; padding: 16px; }
+    form { display: grid; gap: 8px; max-width: 520px; }
+    .fila { display: flex; gap: 8px; }
+    .fila input { flex: 1; min-width: 0; }
+    .error { color: #b00020; margin: 0; }
+    .aviso { background: #e8f5e9; padding: 8px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 24px; }
+    th, td { border-bottom: 1px solid #ccc; padding: 6px; text-align: left; }
+    .tabla { overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>Gestión de páginas y aplicaciones web</h1>
+  {{with .Aviso}}<p class="aviso" role="status">{{.}}</p>{{end}}
+
+  <form method="post" action="/instancias" enctype="multipart/form-data">
+    <label for="nombre">Nombre del host</label>
+    <div class="fila">
+      <input id="nombre" name="{{.CampoNombre}}" value="{{.Nombre}}" autocomplete="off" required>
+      <button type="submit" formaction="/instancias">Aceptar</button>
+    </div>
+    {{with index .Errores .CampoNombre}}<p class="error">{{.}}</p>{{end}}
+
+    <label for="archivo">Contenido web (comprimido, máximo {{.MaxZipMB}} MB)</label>
+    <div class="fila">
+      <input id="archivo" name="{{.CampoArchivo}}" type="file" accept=".zip">
+      <button type="submit" formaction="/contenido">Publicar</button>
+    </div>
+    {{with index .Errores .CampoArchivo}}<p class="error">{{.}}</p>{{end}}
+  </form>
+
+  <h2>Instancias disponibles</h2>
+  {{if .Instancias}}
+  <div class="tabla">
+    <table>
+      <thead><tr><th>Enlace</th><th>IP</th><th>Máquina virtual</th><th>Creada</th><th>Estado</th><th></th></tr></thead>
+      <tbody>
+      {{range .Instancias}}
+        <tr>
+          <td><a href="{{.URL}}" target="_blank" rel="noopener">{{.URL}}</a></td>
+          <td>{{.IP}}/{{.Prefijo}}</td>
+          <td>{{.Nombre}}</td>
+          <td>{{.Creada}}</td>
+          <td>{{.Estado}}{{with .Error}}<br><small class="error">{{.}}</small>{{end}}</td>
+          <td>{{if .Eliminable}}
+            <form method="post" action="/instancias/{{.Nombre}}/eliminar" onsubmit="return confirm('¿Eliminar la instancia {{.Nombre}}?')">
+              <button type="submit">Eliminar</button>
+            </form>{{end}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <p>Aún no hay instancias. Escribe un nombre y pulsa Aceptar.</p>
+  {{end}}
+</body>
+</html>

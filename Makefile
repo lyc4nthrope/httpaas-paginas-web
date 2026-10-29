@@ -14,7 +14,7 @@ run: build
 
 # Without VMs: every port answers through a fake (available from phase A5).
 simular: build
-	./$(BIN) -simular
+	./$(BIN) -simular -config config.example.json
 
 test:
 	go test -race -count=1 ./...
