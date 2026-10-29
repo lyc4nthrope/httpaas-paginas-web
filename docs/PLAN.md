@@ -405,12 +405,16 @@ Imprime `OK`/`FALLA` por paso y termina con código distinto de 0 si algo falló
 
 ---
 
-## 12. Dudas para el profesor (preguntar antes de H1)
+## 12. Dudas para el profesor
 
-1. ¿El dominio debe ser exactamente `cloud.local` y las IPs las de la figura (`.10` para DNS y `.30` en adelante)?
-2. ¿La webapp puede correr en el host, o debe estar en una VM?
-3. ¿Hay sustentación? ¿En qué PC y con cuántas instancias?
-4. ¿Cómo se entrega el código fuente: enlace al repositorio o archivo `.zip` en Classroom?
-5. El enunciado dice Debian **13.0**; la versión actual es 13.7. ¿Sirve cualquier 13.x? (El plan asume que sí.)
+Respuestas recibidas el 29 de octubre de 2026:
 
-Eliminar instancias **no** es una duda: el objetivo específico 2 pide automatizar la "creación, configuración y eliminación", y la figura tiene el botón "Eliminar".
+| # | Pregunta | Respuesta | Qué cambia en el plan |
+|---|---|---|---|
+| 1 | ¿El dominio debe ser `cloud.local`? | ✅ Sí, `cloud.local` | Nada: es el de la zona (B2) y el de `config.json`. Las IPs no se preguntaron explícitamente; se usan las de la figura (`.10` DNS, `.30`+ instancias) |
+| 2 | ¿La webapp puede correr en el host? | ✅ Sí, como en el Parcial 2 | Confirma D1 |
+| 3 | ¿Hay sustentación? ¿En qué PC y con cuántas instancias? | ⏳ Sin respuesta | Prepararse para cualquier caso: `scripts/prueba-completa.sh` debe pasar en los **tres** PCs (H4) y `max_instancias` se ajusta a la RAM del PC que se use |
+| 4 | ¿Cómo se entrega el código fuente? | ✅ Con el enlace al repositorio de GitHub | El repositorio es público. El `README.md` (A8) debe explicar cómo compilar, configurar y usar, porque es lo primero que verá el profesor. `main` debe tener la versión final antes del 11 de noviembre |
+| 5 | ¿Sirve cualquier Debian 13.x? | ✅ Sí, puede ser la más reciente | Se usa la ISO netinst más reciente de Debian 13 |
+
+Eliminar instancias **no** era una duda: el objetivo específico 2 pide automatizar la "creación, configuración y eliminación", y la figura tiene el botón "Eliminar".
