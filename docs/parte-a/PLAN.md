@@ -105,7 +105,7 @@ El "cerebro" de la nube: la webapp, la cola que crea, publica y elimina instanci
 📸 **A-04** — dashboard en modo simulado con una instancia en `creando`. 📸 **A-05** — error 422 mostrado en el formulario.
 **Commit:** `feat(web): serve dashboard and instance routes`
 
-### A6. Adaptador VirtualBox ⬜ (pasos 1–5 desde H1; paso 6 y verificación en cuanto C entregue `clon-manual.md`, a más tardar en H3)
+### A6. Adaptador VirtualBox 🟡 pasos 1–5 hechos; falta el 6 (pasos 1–5 desde H1; paso 6 y verificación en cuanto C entregue `clon-manual.md`, a más tardar en H3)
 **Meta:** crear y borrar VMs reales a partir del disco multiconexión.
 > **Por qué en dos tiempos:** C6 y A6 caen en el mismo hito. Los pasos 1–5 son funciones puras con pruebas y no necesitan VMs, así que se adelantan. Cuando llegue `clon-manual.md`, solo hay que comparar los argumentos con ese documento y correr la prueba real.
 1. `internal/vbox` implementa `Hipervisor` llamando a `VBoxManage` con `exec.CommandContext` y los argumentos separados, siguiendo **exactamente** los comandos de `clon-manual.md`:
