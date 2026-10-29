@@ -50,7 +50,11 @@ Hacer P1–P4 del [plan general §7](../PLAN.md#7-preparación-de-cada-pc-los-tr
 **Meta:** Debian 13 sin interfaz gráfica, con Apache y acceso por SSH con llaves.
 1. VM `apache-plantilla`: 1 CPU, 512 MB, disco **dinámico de 6 GB llamado `ApacheServer.vdi`**, **BIOS**, controlador **SATA (AHCI)** (D16). `nic1` host-only `vboxnet0`, `nic2` NAT.
 2. Instalar Debian 13: sin entorno gráfico, con "SSH server" y "standard system utilities".
-3. Red: `enp0s3` estática **192.168.10.20/24** (IP de mantenimiento) y `enp0s8` por DHCP. Confirmar los nombres con `ip -br link`.
+3. Red: confirmar los nombres con `ip -br link`. Cada interfaz va en **su propio archivo** dentro de `interfaces.d/`, porque el primer arranque de los clones reescribe solo el de `enp0s3`:
+   - `/etc/network/interfaces`: **solo** `source /etc/network/interfaces.d/*` y la interfaz `lo`. Nada de `enp0s3` ni de `enp0s8`.
+   - `/etc/network/interfaces.d/enp0s3`: `auto enp0s3`, `iface enp0s3 inet static`, `address 192.168.10.20/24` (IP de mantenimiento), **sin** `gateway`.
+   - `/etc/network/interfaces.d/enp0s8`: `auto enp0s8`, `iface enp0s8 inet dhcp` (salida a internet por NAT).
+   - Verificación: `grep -c enp0s3 /etc/network/interfaces` → `0`, y `ip -br addr` muestra `.20` en `enp0s3`.
 4. `apt install apache2 unzip sudo curl`. Usuario `httpaas` sin contraseña, con las tres llaves de `deploy/llaves/*.pub`. Crear `/home/httpaas/subidas` (dueño `httpaas`, 0700).
 5. `sshd_config.d/10-httpaas.conf`: `PasswordAuthentication no` y `PermitRootLogin no` (`sshd -t` antes de reiniciar).
 6. Snapshot `c1-base`.
@@ -86,7 +90,7 @@ Snapshot `c2-additions`.
    5. `estado=configurando`. `trap` en ERR que escribe `estado=error:linea-$LINENO`.
    6. `hostnamectl set-hostname H` y `/etc/hosts` (`127.0.1.1 H.cloud.local H`).
    7. Identidad única: `rm -f /etc/ssh/ssh_host_*` → `ssh-keygen -A`; vaciar `/etc/machine-id` → `systemd-machine-id-setup`.
-   8. Red: reescribir `/etc/network/interfaces.d/enp0s3` con la IP nueva y `dns-nameservers` → `ifdown enp0s3; ifup enp0s3` (o reiniciar `networking`). `/etc/resolv.conf` con `nameserver 192.168.10.10` y `search cloud.local`.
+   8. Red, **en este orden**: `ifdown enp0s3` (mientras el archivo todavía tiene la `.20`, para que ifupdown sepa qué quitar) → reescribir `/etc/network/interfaces.d/enp0s3` con la IP nueva, sin gateway → `ifup enp0s3`. Si `ifdown` falla, ejecutar `ip addr flush dev enp0s3` antes del `ifup`. Solo se toca ese archivo; `/etc/network/interfaces` no se modifica (C1.3). Después, `/etc/resolv.conf` con `nameserver 192.168.10.10` y `search cloud.local`.
    9. Apache: `/var/www/H/index.html` provisional ("Instancia H lista. Aún no hay contenido publicado.") → `/etc/apache2/sites-available/H.conf` desde la plantilla `deploy/plantilla/vhost.conf.tmpl` (`ServerName H.cloud.local`, `DocumentRoot /var/www/H`, `ErrorLog`/`CustomLog` propios) → `a2ensite H` → `a2dissite 000-default` → `apache2ctl configtest` → `systemctl reload apache2`.
    10. `systemctl restart ssh`. Escribir `/etc/httpaas/aplicado`. Por último, `estado=listo`.
 2. `httpaas-firstboot.service`: `Type=oneshot`, `RemainAfterExit=yes`, `After=vboxadd-service.service network.target`, `Wants=vboxadd-service.service`, `WantedBy=multi-user.target`. `systemctl enable httpaas-firstboot`.
@@ -100,14 +104,15 @@ Snapshot `c2-additions`.
 **Meta:** desplegar un zip de forma segura y sin dejar el sitio a medias.
 1. `deploy/plantilla/httpaas-publicar ZIP`:
    1. El argumento debe coincidir con `^/home/httpaas/subidas/[a-zA-Z0-9-]{8,64}\.zip$` y existir. Si no, código 2.
-   2. `unzip -Z1` lista las entradas: si alguna empieza con `/` o contiene `..`, código 2. `zipinfo` sin enlaces simbólicos (`^l`). Máximo 2000 entradas y 200 MB (suma de `unzip -Zt`).
-   3. Descomprimir en `mktemp -d` (en `/var/www/.tmp-H`). Si no hay `index.html` en la raíz y hay **una sola** carpeta, usar esa carpeta como raíz. Si aun así no hay `index.html`, código 2.
-   4. `chown -R www-data:www-data`, permisos 0755/0644 → `mv /var/www/H /var/www/.old-H && mv <nuevo> /var/www/H` → `apache2ctl configtest && systemctl reload apache2` (si falla, se restaura `.old-H` y código 3) → borrar `.old-H` y el zip.
-   5. Imprimir `publicado <n> archivos`.
+   2. El nombre de la instancia `H` **no llega como argumento**: se lee del primer campo de `/etc/httpaas/aplicado`, que escribe `httpaas-firstboot` (C3.1.10), y se valida con la regex de D10. Si el archivo no existe o el nombre es inválido, código 3: la instancia no terminó su primer arranque. Así nadie puede publicar en la carpeta de otro sitio.
+   3. `unzip -Z1` lista las entradas: si alguna empieza con `/` o contiene `..`, código 2. `zipinfo` sin enlaces simbólicos (`^l`). Máximo 2000 entradas y 200 MB (suma de `unzip -Zt`).
+   4. Descomprimir en `mktemp -d` (en `/var/www/.tmp-H`). Si no hay `index.html` en la raíz y hay **una sola** carpeta, usar esa carpeta como raíz. Si aun así no hay `index.html`, código 2.
+   5. `chown -R www-data:www-data`, permisos 0755/0644 → `mv /var/www/H /var/www/.old-H && mv <nuevo> /var/www/H` → `apache2ctl configtest && systemctl reload apache2` (si falla, se restaura `.old-H` y código 3) → borrar `.old-H` y el zip.
+   6. Imprimir `publicado <n> archivos`.
 2. `/etc/sudoers.d/httpaas`: `httpaas ALL=(root) NOPASSWD: /usr/local/sbin/httpaas-publicar` (`visudo -cf`).
 3. `testdata/zips/`: `paisajes.zip` (un `index.html` con una imagen de paisaje), `negocios.zip` (una carpeta `negocios/` con `index.html` y `css/`, para probar el caso de la carpeta única), `sin-index.zip`, `zipslip.zip` (entrada `../../tmp/x`) y `symlink.zip`. Agregar el script `testdata/zips/generar.sh` que los crea, para que se puedan reconstruir.
 
-**Verificación (en la VM de prueba de C3, antes de restaurar):** `scp` de cada zip a `subidas/` → `sudo httpaas-publicar …`. `paisajes` y `negocios` → código 0 y `curl` muestra el contenido. Los tres maliciosos → código 2, y el sitio anterior **sigue** funcionando. `sudo cat /etc/shadow` → rechazado.
+**Verificación:** repetir la prueba de C3.3 (snapshot `c3-antes` → propiedades de `prueba` → reiniciar → `estado=listo`) y, **antes de restaurar el snapshot**: `scp` de cada zip a `subidas/` → `sudo httpaas-publicar …`. `paisajes` y `negocios` → código 0 y `curl` muestra el contenido. Los tres maliciosos → código 2, y el sitio anterior **sigue** funcionando. `sudo cat /etc/shadow` → rechazado.
 📸 **C-07** — publicación correcta. 📸 **C-08** — rechazo de `zipslip.zip`.
 **Commit:** `feat(plantilla): publish user zips atomically with validation`
 
@@ -130,7 +135,8 @@ Snapshot `c2-additions`.
 📸 **C-09** — `showmediuminfo` con `Type: multiattach`.
 **Commit:** `feat(plantilla): add reproducible install script for the template`
 
-### C6. Clonación manual y especificación para A ⬜ (H2) — **bloquea a A6**
+### C6. Clonación manual y especificación para A ⬜ (H2, lo primero del día) — **bloquea la prueba real de A6**
+> Avisar a Cristhian en cuanto `clon-manual.md` esté en `dev`: A6 no puede probar con VMs reales sin este documento.
 **Meta:** probar a mano la secuencia exacta que A va a automatizar.
 1. `docs/parte-c/clon-manual.md`: los comandos uno por uno (`createvm`, `modifyvm`, `storagectl`, `storageattach`, `guestproperty set` ×4, `startvm --type headless`, esperar `listo`, `controlvm poweroff`, `unregistervm --delete`) y la salida esperada de cada uno.
 2. Ejecutarlos para `paisajes` (`.30`) y `negocios` (`.31`) **al mismo tiempo**.
@@ -143,7 +149,7 @@ Snapshot `c2-additions`.
 
 ### C7. Adaptador Go `internal/publicar` ⬜ (H3)
 **Meta:** que la webapp valide y publique el zip.
-1. `ValidarZip(ruta string, lim Limites) (Resumen, error)`, una función pura con `archive/zip`. Aplica las mismas reglas que C4.1.2–3, y además rechaza las entradas cuyo `filepath.IsLocal` sea falso. `Resumen{Archivos int, Bytes int64, Raiz string}`. Los errores son legibles para el usuario ("El zip contiene rutas peligrosas: ../../etc/passwd").
+1. `ValidarZip(ruta string, lim Limites) (Resumen, error)`, una función pura con `archive/zip`. Aplica las mismas reglas que C4.1.3–4, y además rechaza las entradas cuyo `filepath.IsLocal` sea falso. `Resumen{Archivos int, Bytes int64, Raiz string}`. Los errores son legibles para el usuario ("El zip contiene rutas peligrosas: ../../etc/passwd").
 2. `Publicador.Publicar(host, ip, zip)`: `id := hex aleatorio` → `ex.CopyTo(zip, "/home/httpaas/subidas/<id>.zip")` → `ex.Run(sudo /usr/local/sbin/httpaas-publicar <ruta>)`. El código 2 se convierte en un error de validación y el 3 en un error de servidor → verificación `GET http://<ip>/` con `Host: <host>.cloud.local` → 200.
 3. Pruebas de tabla de `ValidarZip` con los zips de `testdata/zips` y con zips generados en memoria (rutas absolutas, `..`, symlink, 2001 entradas, tamaño declarado enorme, vacío, no es un zip). Pruebas de `Publicar` con `executor.Fake` (argumentos exactos, mapeo de códigos). Prueba `vm` contra una instancia real.
 

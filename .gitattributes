@@ -1,0 +1,5 @@
+# Keep LF endings so bash scripts work inside the Debian VMs even when edited on Windows
+* text=auto eol=lf
+*.pdf binary
+*.png binary
+*.zip binary

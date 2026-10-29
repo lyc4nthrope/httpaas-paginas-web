@@ -75,8 +75,19 @@ Hacer P1–P4 del [plan general §7](../PLAN.md#7-preparación-de-cada-pc-los-tr
 ### B3. Actualización dinámica con `httpaas-dns` ⬜ (H1)
 **Meta:** registrar y quitar hosts con un solo comando, que es lo que llamará la webapp.
 1. `deploy/ns/httpaas-dns` (bash, `set -euo pipefail`). Valida el host con `^[a-z][a-z0-9-]{1,30}[a-z0-9]$` y la IP con `^192\.168\.10\.([1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-4])$`. Rechaza `ns`.
-   - `agregar H IP`: entrada para `nsupdate -l` con `update delete H.cloud.local A`, `update add H.cloud.local 300 A IP`, el PTR equivalente en la zona inversa y `send`. Después confirma con `dig @127.0.0.1 +short H.cloud.local` = IP. Si no coincide, sale con código 1.
-   - `quitar H`: `update delete` del A y del PTR. No falla si no existía.
+   - `agregar H IP`: una sola llamada a `nsupdate -l` con **dos bloques, uno por zona, cada uno con su propio `send`**. Un mensaje de actualización solo puede tocar una zona; si se mezclan, `nsupdate` falla con `NOTZONE`. `N` es el último octeto de la IP:
+     ```
+     zone cloud.local
+     update delete H.cloud.local A
+     update add H.cloud.local 300 A IP
+     send
+     zone 10.168.192.in-addr.arpa
+     update delete N.10.168.192.in-addr.arpa PTR
+     update add N.10.168.192.in-addr.arpa 300 PTR H.cloud.local.
+     send
+     ```
+     Después confirma con `dig @127.0.0.1 +short H.cloud.local` = IP y `dig @127.0.0.1 +short -x IP` = `H.cloud.local.`. Si no coincide, sale con código 1.
+   - `quitar H`: primero obtiene la IP actual con `dig +short H.cloud.local` (para saber qué PTR borrar). Después, dos bloques igual que arriba: `update delete H.cloud.local A` + `send`, y `update delete N.10.168.192.in-addr.arpa PTR` + `send`. No falla si no existía.
    - `listar`: `dig @127.0.0.1 cloud.local AXFR` filtrado a `host ip`. Para que funcione, agregar `allow-transfer { localhost; };` a la zona.
 2. Instalar en `/usr/local/sbin/httpaas-dns` (root, 0755). `/etc/sudoers.d/httpaas`: `httpaas ALL=(root) NOPASSWD: /usr/local/sbin/httpaas-dns`, validado con `visudo -cf`.
 3. `deploy/ns/instalar.sh`: hace B1.5 a B3.2 en una VM Debian recién instalada (D14). Debe poder correrse dos veces sin romper nada.
@@ -85,6 +96,7 @@ Hacer P1–P4 del [plan general §7](../PLAN.md#7-preparación-de-cada-pc-los-tr
 ```bash
 ssh httpaas@192.168.10.10 sudo httpaas-dns agregar prueba 192.168.10.99   # código 0
 dig @192.168.10.10 prueba.cloud.local +short                              # 192.168.10.99
+dig @192.168.10.10 -x 192.168.10.99 +short                                # prueba.cloud.local.
 ssh httpaas@192.168.10.10 sudo httpaas-dns agregar 'x;id' 192.168.10.99   # rechazado, código ≠ 0
 ssh httpaas@192.168.10.10 sudo httpaas-dns quitar prueba && dig @192.168.10.10 prueba.cloud.local +short   # vacío
 ssh httpaas@192.168.10.10 sudo cat /etc/shadow                            # rechazado por sudo

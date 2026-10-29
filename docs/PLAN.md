@@ -279,8 +279,8 @@ Hoy es jueves 29 de octubre. Hay 13 días.
 |---|---|---|
 | **H0** | vie 30 oct | Los tres: red host-only funcionando, llave SSH generada con su `.pub` en `deploy/llaves/`, Go 1.24 instalado. A: contrato (§4) en `dev` y `make check` en verde |
 | **H1** | lun 2 nov | A: `make simular` crea, publica y elimina con Fakes desde el navegador. B: `dig @192.168.10.10 ns.cloud.local` responde y `httpaas-dns agregar` funciona por SSH. C: plantilla que se reconfigura sola con guest properties (probado con snapshot) |
-| **H2** | mié 4 nov | C: `ApacheServer.vdi` en multiconexión, `clon-manual.md` y `.vdi` compartido con el equipo. B: adaptador `dns` con pruebas y prueba en VM. A: `vbox` crea y elimina una instancia real |
-| **H3** | vie 6 nov | Integración en `dev` (A): crear → DNS → publicar → dashboard → eliminar, de punta a punta en un PC. B: dashboard final. C: adaptador `publicar` integrado |
+| **H2** | mié 4 nov | C (**en la mañana**): `ApacheServer.vdi` en multiconexión, `clon-manual.md` en `dev` y `.vdi` compartido con el equipo. B: adaptador `dns` con pruebas y prueba en VM. A: argumentos de `vbox` con pruebas (desde H1) comparados con `clon-manual.md`; prueba con VM real si el documento llegó |
+| **H3** | vie 6 nov | A: `vbox` crea y elimina una instancia real (si no se hizo en H2). Integración en `dev` (A): crear → DNS → publicar → dashboard → eliminar, de punta a punta en un PC. B: dashboard final. C: adaptador `publicar` integrado |
 | **H4** | dom 8 nov | `scripts/prueba-completa.sh` pasa en los **tres** PCs. Todas las capturas tomadas. Errores corregidos |
 | **H5** | mar 10 nov | Documento final (B) revisado por los tres. `dev` → `main` y etiqueta `v1.0` |
 | Entrega | mié 11 nov | Día de reserva. Subir código y documento antes de las 11:59 pm |
@@ -317,6 +317,20 @@ Verificación: `git status` muestra `deploy/llaves/<nombre>.pub` y **no** muestr
 
 **P4. Herramientas:** `go version` ≥ 1.24, `VBoxManage --version` 7.2.x y `ssh -V`.
 
+**P5. Sistema operativo de cada uno.** En H0, cada uno escribe en el PR del contrato qué sistema usa. Si alguien usa **Windows**:
+
+| En Linux | Equivalente en Windows | Por qué |
+|---|---|---|
+| P1 (`networks.conf`) | No hace falta | La restricción de rangos solo existe en Linux y macOS |
+| `make check` | En PowerShell: `gofmt -l .` (debe salir vacío) → `go vet ./...` → `go test ./...` → `go build ./cmd/httpaas` | Windows no trae `make`. `go test -race` exige CGO y un compilador C, así que en Windows se corre sin `-race`; la prueba con `-race` la hace la CI de GitHub (A0) en cada PR |
+| `make vm-test` | `go test -tags vm -count=1 ./...` | Lo mismo, sin `make` |
+| `scripts/*.sh` en el host | Ejecutarlos con **Git Bash** (viene con Git for Windows) | Son scripts bash |
+| `VBoxManage` | `"C:\Program Files\Oracle\VirtualBox\VBoxManage.exe"` (ponerlo en `config.json`, `vbox.vboxmanage`) | No está en el `PATH` por defecto |
+| `ssh`, `scp`, `ssh-keygen` | Vienen con Windows 10/11 (OpenSSH). Comprobar con `ssh -V` | — |
+| Resolver `*.cloud.local` | Regla NRPT (fase B5, punto 2) | Windows no usa `nsswitch.conf` |
+
+Los scripts que corren **dentro** de las VMs (`httpaas-dns`, `httpaas-firstboot`, `httpaas-publicar`) no cambian: las VMs son Debian en cualquier host. Antes de subirlos desde Windows, revisar que tengan finales de línea LF (el `.gitattributes` del repo lo fuerza), porque con CRLF bash falla con `$'\r': command not found`.
+
 La resolución de `*.cloud.local` en el host (el problema de `nsswitch`) la resuelve **B** en su fase B5 y la documenta para los tres.
 
 ---
@@ -335,7 +349,7 @@ La resolución de `*.cloud.local` en el host (el problema de `nsswitch`) la resu
 - Al terminar una fase verificada: `git push` y PR de `<tu-rama>` hacia `dev`. A revisa e integra.
 
 **Código:**
-1. `make check` en verde antes de **cada** commit (gofmt, vet, pruebas con `-race` y build). Si falla, no se sube.
+1. `make check` en verde antes de **cada** commit (gofmt, vet, pruebas con `-race` y build). Si falla, no se sube. En Windows, la secuencia equivalente de P5.
 2. Nunca armar comandos con texto del usuario (D9). Los argumentos van separados en `exec.Command`, o como `$1`, `$2` de un script fijo.
 3. Todo dato del formulario se valida **antes** de ejecutar algo. Si es inválido, se responde 422 con un mensaje claro y no se ejecuta nada.
 4. Toda función que genera texto o configuración (vhost, nsupdate, argumentos) es **pura** y tiene prueba de tabla.
@@ -394,6 +408,7 @@ Imprime `OK`/`FALLA` por paso y termina con código distinto de 0 si algo falló
 ## 12. Dudas para el profesor (preguntar antes de H1)
 
 1. ¿El dominio debe ser exactamente `cloud.local` y las IPs las de la figura (`.10` para DNS y `.30` en adelante)?
-2. ¿Es obligatorio **eliminar** instancias desde la webapp, o basta con crear y publicar?
-3. ¿La webapp puede correr en el host, o debe estar en una VM?
-4. ¿Hay sustentación? ¿En qué PC y con cuántas instancias?
+2. ¿La webapp puede correr en el host, o debe estar en una VM?
+3. ¿Hay sustentación? ¿En qué PC y con cuántas instancias?
+
+Eliminar instancias **no** es una duda: el objetivo específico 2 pide automatizar la "creación, configuración y eliminación", y la figura tiene el botón "Eliminar".

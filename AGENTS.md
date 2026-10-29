@@ -17,4 +17,7 @@ from a VirtualBox multiattach disk, registers them in Bind9 (`cloud.local`) and 
 - `make check` must pass before every commit. Conventional commits in English that state what changed.
 - Never commit `keys/`, `data/`, `logs/`, `config.json`, private keys or disk images.
 - Do not invent VBoxManage, Bind9 or Apache flags: check `--help`, man pages or official docs.
-- Repository docs are in Spanish; code identifiers, comments and commit messages in English.
+- Language: repository docs in Spanish. Package names, types, functions and fields use the Spanish names defined
+  in the shared contract (`docs/PLAN.md` §4: `puertos`, `Hipervisor`, `ValidarHostname`, `SolicitarCrear`…) and new
+  identifiers follow that same style. Code comments and commit messages in English.
+- On Windows there is no `make`: use the equivalent commands in `docs/PLAN.md` §7 (P5). Shell scripts must keep LF line endings.
