@@ -76,12 +76,12 @@ El "cerebro" de la nube: la webapp, la cola que crea, publica y elimina instanci
 **Verificación:** `make check`. Matar el proceso a mitad de `Guardar` no deja el JSON a medias (se revisa la prueba del `rename`).
 **Commit:** `feat(almacen): persist instances atomically and allocate free ips`
 
-### A4. Servicio orquestador con cola ⬜
+### A4. Servicio orquestador con cola ✅
 **Meta:** toda la lógica de crear, publicar y eliminar, probada solo con Fakes.
 1. `internal/instancias.Servicio` recibe `Hipervisor`, `DNS`, `Publicador`, el almacén y la config.
 2. Un solo goroutine consume un canal de trabajos (D4). `Solicitar*` valida, guarda el estado y encola. No bloquea la petición HTTP.
 3. `SolicitarCrear(nombre)`: valida (formato, repetido, máximo) → `creando` + IP → trabajo: `Crear` → `EsperarLista` (tiempo máximo 3 min) → `DNS.Agregar` → `DNS.Resolver == IP` → `lista`.
-4. `SolicitarPublicar(nombre, zipLocal)`: solo si está `lista` → `publicando` → `Publicador.Publicar` → `lista`. Borra el zip temporal siempre.
+4. `SolicitarPublicar(nombre, zipLocal)`: solo si está `lista` → `publicando` → `Publicador.Publicar` → `lista`. Si la publicación falla, vuelve a `lista` con el error anotado (Apache sigue sirviendo el contenido anterior y se puede reintentar). Borra el zip temporal siempre.
 5. `SolicitarEliminar(nombre)`: desde cualquier estado excepto `creando` o `eliminando` → `DNS.Quitar` → `Hipervisor.Eliminar` → `OlvidarHost` → quitar del almacén. Si un paso falla, sigue con los demás y deja `error` con el detalle.
 6. `Reconciliar()` al arrancar: las instancias del JSON que no están en `Hipervisor.Listar` pasan a `perdida`; las que quedaron en `creando` o `publicando` pasan a `error` ("la app se reinició durante la operación").
 
