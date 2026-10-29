@@ -37,7 +37,7 @@ El "cerebro" de la nube: la webapp, la cola que crea, publica y elimina instanci
 
 ## Fases
 
-### A0. Esqueleto del repositorio ⬜ (H0)
+### A0. Esqueleto del repositorio ✅ (H0)
 **Meta:** que los tres puedan clonar, compilar y correr `make check` el primer día.
 1. `go mod init github.com/lyc4nthrope/httpaas-paginas-web`.
 2. `Makefile` con `build`, `run`, `simular`, `test`, `check` y `vm-test` (copiar del Parcial 2 y cambiar el nombre del binario a `httpaas`).
@@ -67,9 +67,9 @@ El "cerebro" de la nube: la webapp, la cola que crea, publica y elimina instanci
 📸 **A-03** — línea del registro de un comando real.
 **Commit:** `feat(executor): run remote commands over non-interactive ssh`
 
-### A3. Almacén y asignación de IPs ⬜
+### A3. Almacén y asignación de IPs ✅
 **Meta:** que el estado sobreviva a reinicios y que nunca se repita una IP.
-1. `internal/almacen`: `Cargar`, `Guardar` (archivo temporal en la misma carpeta + `os.Rename`), `Agregar`, `Actualizar`, `Quitar` y `Listar` (ordenado por fecha). Protegido con `sync.Mutex`.
+1. `internal/almacen`: `Abrir`, `Reservar` (valida nombre repetido y máximo, asigna la IP y guarda en un solo paso bajo el candado), `Actualizar`, `Quitar`, `Obtener` y `Listar` (ordenado por fecha). Cada cambio se guarda con archivo temporal + `os.Rename`.
 2. `SiguienteIP()`: la menor IP libre entre `primera` y `ultima`. Error claro si no hay.
 3. Pruebas: archivo inexistente → lista vacía; JSON corrupto → error (no lo sobrescribe); IPs `.30` y `.32` ocupadas → `.31`; rango lleno → error; escrituras concurrentes con `-race`.
 
