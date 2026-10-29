@@ -277,7 +277,7 @@ Hoy es jueves 29 de octubre. Hay 13 días.
 
 | Hito | Fecha | Qué debe estar listo (verificable) |
 |---|---|---|
-| **H0** | vie 30 oct | Registrar el equipo respondiendo el mensaje de Classroom (lo exige el enunciado; no se autorizan equipos de 1). Los tres: red host-only funcionando, llave SSH generada con su `.pub` en `deploy/llaves/`, Go 1.24 instalado. A: contrato (§4) en `dev` y `make check` en verde |
+| **H0** | vie 30 oct | ✅ Equipo registrado en Classroom (29 oct). Los tres: red host-only funcionando, llave SSH generada con su `.pub` en `deploy/llaves/`, Go 1.24 instalado. A: contrato (§4) en `dev` y `make check` en verde |
 | **H1** | lun 2 nov | A: `make simular` crea, publica y elimina con Fakes desde el navegador. B: `dig @192.168.10.10 ns.cloud.local` responde y `httpaas-dns agregar` funciona por SSH. C: plantilla que se reconfigura sola con guest properties (probado con snapshot) |
 | **H2** | mié 4 nov | C (**en la mañana**): `ApacheServer.vdi` en multiconexión, `clon-manual.md` en `dev` y `.vdi` compartido con el equipo. B: adaptador `dns` con pruebas y prueba en VM. A: argumentos de `vbox` con pruebas (desde H1) comparados con `clon-manual.md`; prueba con VM real si el documento llegó |
 | **H3** | vie 6 nov | A: `vbox` crea y elimina una instancia real (si no se hizo en H2). Integración en `dev` (A): crear → DNS → publicar → dashboard → eliminar, de punta a punta en un PC. B: dashboard final. C: adaptador `publicar` integrado |
