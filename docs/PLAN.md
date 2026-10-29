@@ -28,7 +28,7 @@ El enunciado pide una **mini nube local**. El usuario entra a una web en Go, esc
 | R9 | Todo sin interacción del usuario (§5) | Parcial 2: SSH con `BatchMode`, sin contraseñas | Reutilizar ese enfoque (A) |
 | R10 | Código, documento con capturas paso a paso, problemas, mejoras y aprendizajes | Formato del Parcial 2 | Capturas por fase (todos) y documento consolidado (B) |
 
-**Recursos del host (Cristhian):** 15 GB de RAM y ~13 GB libres en disco. Cada instancia usa 512 MB de RAM, y su disco diferencial pesa unos pocos cientos de MB. Por eso hay un **máximo de 3 instancias simultáneas** (configurable).
+**Recursos del host (Cristhian):** 15 GB de RAM y ~13 GB libres en disco. Cada instancia usa 512 MB de RAM, y su disco diferencial empieza casi vacío y crece con lo que la VM escribe (se mide en C6). Por eso hay un **máximo de 3 instancias simultáneas** (configurable).
 
 **Problemas ya detectados en el host (hay que resolverlos en H0):**
 1. No existe `/etc/vbox/networks.conf`. En Linux, VirtualBox 7 solo deja crear redes host-only dentro de `192.168.56.0/21`, así que `192.168.10.x` falla si no se configura.
@@ -105,7 +105,7 @@ Cada una es una recomendación. Si el equipo cambia alguna, se cambia aquí prim
 |---|---|---|
 | D1 | La webapp corre **en el host** | Solo ahí existe `VBoxManage`. Es el "plano de control", como la consola de AWS |
 | D2 | Red **host-only** `vboxnet0` 192.168.10.0/24 sin servidor DHCP, más un adaptador **NAT** en cada VM | El host (navegador y webapp) llega a las VMs con IPs fijas que no dependen del wifi de la universidad. Sin DHCP no hay choques de IP. El NAT da internet para `apt` |
-| D3 | Cada clon se configura solo con **guest properties + un servicio de primer arranque** (`httpaas-firstboot`) | Es como cloud-init en AWS. La webapp deja los datos antes de arrancar y no necesita entrar a una VM que todavía tiene la IP de otra. Funciona aunque se creen varias seguidas |
+| D3 | Cada clon se configura solo con **guest properties + un servicio de primer arranque** (`httpaas-firstboot`) | Es la misma idea que el *user data* de una instancia EC2, que cloud-init ejecuta solo en el primer arranque. La webapp deja los datos antes de arrancar y no necesita entrar a una VM que todavía tiene la IP de otra. Funciona aunque se creen varias seguidas |
 | D4 | La webapp procesa los trabajos de a **uno a la vez** (una cola) | Evita carreras al asignar IPs y al registrar el disco multiconexión en VirtualBox. Crear tarda ~1 min, así que no hace falta más |
 | D5 | DNS dinámico con `update-policy local` y **`nsupdate -l` ejecutado dentro de `ns`** por un script fijo (`httpaas-dns`) | No hay que instalar herramientas de BIND en el host (sirve en Windows) ni copiar llaves TSIG. Basta con SSH |
 | D6 | Las zonas viven en `/var/lib/bind/` y nunca se editan a mano con el servidor encendido (`rndc freeze/thaw`) | Con actualizaciones dinámicas, Bind escribe un journal `.jnl`. Editar el archivo a mano lo corrompe. AppArmor solo deja escribir en `/var/lib/bind` |
@@ -277,7 +277,7 @@ Hoy es jueves 29 de octubre. Hay 13 días.
 
 | Hito | Fecha | Qué debe estar listo (verificable) |
 |---|---|---|
-| **H0** | vie 30 oct | Los tres: red host-only funcionando, llave SSH generada con su `.pub` en `deploy/llaves/`, Go 1.24 instalado. A: contrato (§4) en `dev` y `make check` en verde |
+| **H0** | vie 30 oct | Registrar el equipo respondiendo el mensaje de Classroom (lo exige el enunciado; no se autorizan equipos de 1). Los tres: red host-only funcionando, llave SSH generada con su `.pub` en `deploy/llaves/`, Go 1.24 instalado. A: contrato (§4) en `dev` y `make check` en verde |
 | **H1** | lun 2 nov | A: `make simular` crea, publica y elimina con Fakes desde el navegador. B: `dig @192.168.10.10 ns.cloud.local` responde y `httpaas-dns agregar` funciona por SSH. C: plantilla que se reconfigura sola con guest properties (probado con snapshot) |
 | **H2** | mié 4 nov | C (**en la mañana**): `ApacheServer.vdi` en multiconexión, `clon-manual.md` en `dev` y `.vdi` compartido con el equipo. B: adaptador `dns` con pruebas y prueba en VM. A: argumentos de `vbox` con pruebas (desde H1) comparados con `clon-manual.md`; prueba con VM real si el documento llegó |
 | **H3** | vie 6 nov | A: `vbox` crea y elimina una instancia real (si no se hizo en H2). Integración en `dev` (A): crear → DNS → publicar → dashboard → eliminar, de punta a punta en un PC. B: dashboard final. C: adaptador `publicar` integrado |
@@ -410,5 +410,7 @@ Imprime `OK`/`FALLA` por paso y termina con código distinto de 0 si algo falló
 1. ¿El dominio debe ser exactamente `cloud.local` y las IPs las de la figura (`.10` para DNS y `.30` en adelante)?
 2. ¿La webapp puede correr en el host, o debe estar en una VM?
 3. ¿Hay sustentación? ¿En qué PC y con cuántas instancias?
+4. ¿Cómo se entrega el código fuente: enlace al repositorio o archivo `.zip` en Classroom?
+5. El enunciado dice Debian **13.0**; la versión actual es 13.7. ¿Sirve cualquier 13.x? (El plan asume que sí.)
 
 Eliminar instancias **no** es una duda: el objetivo específico 2 pide automatizar la "creación, configuración y eliminación", y la figura tiene el botón "Eliminar".

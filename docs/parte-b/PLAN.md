@@ -58,12 +58,13 @@ Hacer P1–P4 del [plan general §7](../PLAN.md#7-preparación-de-cada-pc-los-tr
 **Commit:** `docs(ns): record base vm setup` (con los pasos en `deploy/ns/README.md`)
 
 ### B2. Zona `cloud.local` estática ⬜ (H1)
+> **Alcance:** el enunciado y la figura solo piden registros **A** en `cloud.local`. La zona **inversa** (PTR) es un extra: cuesta poco y permite `dig -x`. Si da problemas, se quita sin afectar el parcial.
 **Meta:** que Bind9 responda por la zona y por la inversa.
 1. `deploy/ns/named.conf.options`: `listen-on { 127.0.0.1; 192.168.10.10; };`, `allow-query { localhost; 192.168.10.0/24; };`, `recursion yes;`, `allow-recursion { localhost; 192.168.10.0/24; };`, `forwarders { 1.1.1.1; 8.8.8.8; };`, `dnssec-validation auto;`.
 2. `deploy/ns/named.conf.local`:
    ```
-   zone "cloud.local" { type master; file "/var/lib/bind/db.cloud.local"; update-policy local; };
-   zone "10.168.192.in-addr.arpa" { type master; file "/var/lib/bind/db.192.168.10"; update-policy local; };
+   zone "cloud.local" { type primary; file "/var/lib/bind/db.cloud.local"; update-policy local; };
+   zone "10.168.192.in-addr.arpa" { type primary; file "/var/lib/bind/db.192.168.10"; update-policy local; };
    ```
 3. `db.cloud.local`: `$TTL 300`, SOA `ns.cloud.local. admin.cloud.local.` con serial `2026110201`, `NS ns.cloud.local.` y `ns A 192.168.10.10`. `db.192.168.10`: SOA, NS y `10 PTR ns.cloud.local.`
 4. Copiar a `/var/lib/bind/` con dueño `bind:bind`. `named-checkconf`, `named-checkzone cloud.local /var/lib/bind/db.cloud.local` → `systemctl restart named`.
@@ -138,7 +139,7 @@ ssh httpaas@192.168.10.10 sudo cat /etc/shadow                            # rech
 1. `internal/web/templates/dashboard.html` (`html/template`, con escape automático):
    - Título "Gestión de páginas y aplicaciones web".
    - Un formulario con el campo "Nombre del host" y dos botones: **Aceptar** (`formaction="/instancias"`) y **Publicar**, con el campo "Contenido web (comprimido)" (`accept=".zip"`, `formaction="/instancias/{nombre}/contenido"`, armado con un poco de JS a partir del nombre escrito). Los nombres de los campos son las constantes de A5.
-   - Tabla "Instancias disponibles": enlace `http://<host>.cloud.local` (`target="_blank" rel="noopener"`), `IP/24`, nombre de la VM, fecha y hora de creación, estado y el botón **Eliminar** con `confirm()`.
+   - Tabla "Instancias disponibles": enlace `http://<host>.cloud.local` (`target="_blank" rel="noopener"`), `IP/24`, nombre de la VM, fecha y hora de creación, estado y el botón **Eliminar** con `confirm()`. (En la figura, la tercera columna dice `paisajes` también en la fila de `negocios`. Es casi seguro un error de copia del profesor: se muestra el nombre de la VM de cada fila.)
    - Estado vacío: "Aún no hay instancias. Escribe un nombre y pulsa Aceptar".
    - Mensajes flash y errores por campo (llegan de A5).
 2. `static/app.js`: mientras haya una instancia en `creando`, `publicando` o `eliminando`, consulta `GET /api/instancias` cada 3 s y actualiza la tabla. Después deja de consultar.
