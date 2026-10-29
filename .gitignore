@@ -1,0 +1,24 @@
+# Secrets and local state (never commit)
+keys/
+data/
+logs/
+config.json
+*.pem
+id_*
+*_ed25519
+*_rsa
+
+# Virtual machine images and exports
+*.vdi
+*.vmdk
+*.ova
+
+# Build output
+/httpaas
+/httpaas.exe
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
