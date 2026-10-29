@@ -60,7 +60,7 @@ El "cerebro" de la nube: la webapp, la cola que crea, publica y elimina instanci
 ### A2. Configuración, executor SSH y registro ⬜
 **Meta:** ejecutar comandos remotos sin interacción y dejar rastro de cada uno.
 1. `internal/config`: lee `config.json` (§4.5) y valida: IPs, rango `primera ≤ ultima`, que exista `disco_base`, que exista la llave y que `max_instancias ≥ 1`. Un error por campo.
-2. `internal/executor`: copiar `ssh.go`, `executor.go` y `fake.go` del Parcial 2 (`consola-automatizacion-servicios/internal/executor`). Ajustar las opciones de SSH: `-i <llave> -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=<known_hosts> -o ConnectTimeout=5`. Agregar `OlvidarHost(ip)` → `ssh-keygen -R <ip> -f <known_hosts>`.
+2. `internal/executor`: copiar `ssh.go`, `executor.go` y `fake.go` del Parcial 2 (`consola-automatizacion-servicios/internal/executor`). Ajustar las opciones de SSH: `-i <llave> -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=<known_hosts> -o ConnectTimeout=10`. Agregar `OlvidarHost(ip)` → `ssh-keygen -R <ip> -f <known_hosts>`.
 3. `internal/oplog`: copiar del Parcial 2. Una línea JSON por comando en `logs/AAAA-MM-DD.jsonl`.
 
 **Verificación:** pruebas con `-race`. Prueba `vm` contra la VM `ns` de B cuando exista: `Run(ctx, Command{Name:"hostname"})` → `ns`.
