@@ -37,7 +37,7 @@ El "cerebro" de la nube: la webapp, la cola que crea, publica y elimina instanci
 
 ## Fases
 
-### A0. Esqueleto del repositorio ⬜ (H0)
+### A0. Esqueleto del repositorio ✅ (H0)
 **Meta:** que los tres puedan clonar, compilar y correr `make check` el primer día.
 1. `go mod init github.com/lyc4nthrope/httpaas-paginas-web`.
 2. `Makefile` con `build`, `run`, `simular`, `test`, `check` y `vm-test` (copiar del Parcial 2 y cambiar el nombre del binario a `httpaas`).
@@ -60,40 +60,40 @@ El "cerebro" de la nube: la webapp, la cola que crea, publica y elimina instanci
 ### A2. Configuración, executor SSH y registro ⬜
 **Meta:** ejecutar comandos remotos sin interacción y dejar rastro de cada uno.
 1. `internal/config`: lee `config.json` (§4.5) y valida: IPs, rango `primera ≤ ultima`, que exista `disco_base`, que exista la llave y que `max_instancias ≥ 1`. Un error por campo.
-2. `internal/executor`: copiar `ssh.go`, `executor.go` y `fake.go` del Parcial 2 (`consola-automatizacion-servicios/internal/executor`). Ajustar las opciones de SSH: `-i <llave> -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=<known_hosts> -o ConnectTimeout=5`. Agregar `OlvidarHost(ip)` → `ssh-keygen -R <ip> -f <known_hosts>`.
-3. `internal/oplog`: copiar del Parcial 2. Una línea JSON por comando en `logs/AAAA-MM-DD.jsonl`.
+2. `internal/executor`: copiar `ssh.go`, `executor.go` y `fake.go` del Parcial 2 (`consola-automatizacion-servicios/internal/executor`). Ajustar las opciones de SSH: `-i <llave> -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=<known_hosts> -o ConnectTimeout=10`. Agregar `OlvidarHost(ip)` → `ssh-keygen -R <ip> -f <known_hosts>`.
+3. `internal/oplog`: copiar del Parcial 2. Una línea JSON por operación en `logs/operaciones.jsonl` (permisos 600, porque la salida puede tener secretos).
 
 **Verificación:** pruebas con `-race`. Prueba `vm` contra la VM `ns` de B cuando exista: `Run(ctx, Command{Name:"hostname"})` → `ns`.
 📸 **A-03** — línea del registro de un comando real.
 **Commit:** `feat(executor): run remote commands over non-interactive ssh`
 
-### A3. Almacén y asignación de IPs ⬜
+### A3. Almacén y asignación de IPs ✅
 **Meta:** que el estado sobreviva a reinicios y que nunca se repita una IP.
-1. `internal/almacen`: `Cargar`, `Guardar` (archivo temporal en la misma carpeta + `os.Rename`), `Agregar`, `Actualizar`, `Quitar` y `Listar` (ordenado por fecha). Protegido con `sync.Mutex`.
+1. `internal/almacen`: `Abrir`, `Reservar` (valida nombre repetido y máximo, asigna la IP y guarda en un solo paso bajo el candado), `Actualizar`, `Quitar`, `Obtener` y `Listar` (ordenado por fecha). Cada cambio se guarda con archivo temporal + `os.Rename`.
 2. `SiguienteIP()`: la menor IP libre entre `primera` y `ultima`. Error claro si no hay.
 3. Pruebas: archivo inexistente → lista vacía; JSON corrupto → error (no lo sobrescribe); IPs `.30` y `.32` ocupadas → `.31`; rango lleno → error; escrituras concurrentes con `-race`.
 
 **Verificación:** `make check`. Matar el proceso a mitad de `Guardar` no deja el JSON a medias (se revisa la prueba del `rename`).
 **Commit:** `feat(almacen): persist instances atomically and allocate free ips`
 
-### A4. Servicio orquestador con cola ⬜
+### A4. Servicio orquestador con cola ✅
 **Meta:** toda la lógica de crear, publicar y eliminar, probada solo con Fakes.
 1. `internal/instancias.Servicio` recibe `Hipervisor`, `DNS`, `Publicador`, el almacén y la config.
 2. Un solo goroutine consume un canal de trabajos (D4). `Solicitar*` valida, guarda el estado y encola. No bloquea la petición HTTP.
 3. `SolicitarCrear(nombre)`: valida (formato, repetido, máximo) → `creando` + IP → trabajo: `Crear` → `EsperarLista` (tiempo máximo 3 min) → `DNS.Agregar` → `DNS.Resolver == IP` → `lista`.
-4. `SolicitarPublicar(nombre, zipLocal)`: solo si está `lista` → `publicando` → `Publicador.Publicar` → `lista`. Borra el zip temporal siempre.
+4. `SolicitarPublicar(nombre, zipLocal)`: solo si está `lista` → `publicando` → `Publicador.Publicar` → `lista`. Si la publicación falla, vuelve a `lista` con el error anotado (Apache sigue sirviendo el contenido anterior y se puede reintentar). Borra el zip temporal siempre.
 5. `SolicitarEliminar(nombre)`: desde cualquier estado excepto `creando` o `eliminando` → `DNS.Quitar` → `Hipervisor.Eliminar` → `OlvidarHost` → quitar del almacén. Si un paso falla, sigue con los demás y deja `error` con el detalle.
 6. `Reconciliar()` al arrancar: las instancias del JSON que no están en `Hipervisor.Listar` pasan a `perdida`; las que quedaron en `creando` o `publicando` pasan a `error` ("la app se reinició durante la operación").
 
 **Verificación:** pruebas de tabla con Fakes para cada camino feliz y cada fallo (por ejemplo, si `DNS.Agregar` falla: estado `error`, y Eliminar luego llama a `Hipervisor.Eliminar`). Pruebas con `-race`.
 **Commit:** `feat(instancias): orchestrate create, publish and delete through a single worker`
 
-### A5. Servidor web y rutas ⬜ (H1)
+### A5. Servidor web y rutas ✅ (H1)
 **Meta:** la webapp completa con Fakes (`make simular`).
 1. Rutas:
    - `GET /` → dashboard (la plantilla de B; mientras no exista, usar una tabla simple).
    - `POST /instancias` (campo `nombre`) → botón **Aceptar**.
-   - `POST /instancias/{nombre}/contenido` (campo `archivo`, multipart) → botón **Publicar**. Usa `http.MaxBytesReader(max_zip_mb)`, guarda en un archivo temporal y llama a `publicar.ValidarZip` de C (mientras no exista, a un stub).
+   - `POST /contenido` (campos `nombre` y `archivo`, multipart) → botón **Publicar**. Ruta fija para que un solo formulario, como en la figura, sirva para los dos botones sin JavaScript. Usa `http.MaxBytesReader(max_zip_mb)`, guarda en un archivo temporal y llama a `publicar.ValidarZip` de C (mientras no exista, a un stub).
    - `POST /instancias/{nombre}/eliminar` → botón **Eliminar**.
    - `GET /api/instancias` → JSON para que el dashboard se actualice solo.
 2. Patrón POST → redirección 303 → GET, con un mensaje flash ("Instancia paisajes en creación"). Si hay un error de validación, 422 y se vuelve a mostrar el formulario con el error en el campo.
@@ -105,7 +105,7 @@ El "cerebro" de la nube: la webapp, la cola que crea, publica y elimina instanci
 📸 **A-04** — dashboard en modo simulado con una instancia en `creando`. 📸 **A-05** — error 422 mostrado en el formulario.
 **Commit:** `feat(web): serve dashboard and instance routes`
 
-### A6. Adaptador VirtualBox ⬜ (pasos 1–5 desde H1; paso 6 y verificación en cuanto C entregue `clon-manual.md`, a más tardar en H3)
+### A6. Adaptador VirtualBox 🟡 pasos 1–5 hechos; falta el 6 (pasos 1–5 desde H1; paso 6 y verificación en cuanto C entregue `clon-manual.md`, a más tardar en H3)
 **Meta:** crear y borrar VMs reales a partir del disco multiconexión.
 > **Por qué en dos tiempos:** C6 y A6 caen en el mismo hito. Los pasos 1–5 son funciones puras con pruebas y no necesitan VMs, así que se adelantan. Cuando llegue `clon-manual.md`, solo hay que comparar los argumentos con ese documento y correr la prueba real.
 1. `internal/vbox` implementa `Hipervisor` llamando a `VBoxManage` con `exec.CommandContext` y los argumentos separados, siguiendo **exactamente** los comandos de `clon-manual.md`:

@@ -1,0 +1,21 @@
+{
+  "listen": "127.0.0.1:8080",
+  "dominio": "cloud.local",
+  "red": { "base": "192.168.10.", "prefijo": 24, "primera": 30, "ultima": 99 },
+  "max_instancias": 3,
+  "max_zip_mb": 50,
+  "dns": { "ip": "192.168.10.10", "usuario": "httpaas" },
+  "ssh": { "usuario": "httpaas", "llave": "keys/httpaas_ed25519", "known_hosts": "keys/known_hosts" },
+  "vbox": {
+    "vboxmanage": "VBoxManage",
+    "disco_base": "/home/<usuario>/VirtualBox VMs/httpaas-base/ApacheServer.vdi",
+    "red_hostonly": "vboxnet0",
+    "ostype": "Debian_64",
+    "firmware": "bios",
+    "controlador": "sata",
+    "memoria_mb": 512,
+    "cpus": 1
+  },
+  "datos": "data/instancias.json",
+  "logs": "logs/"
+}

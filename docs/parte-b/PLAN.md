@@ -138,11 +138,11 @@ ssh httpaas@192.168.10.10 sudo cat /etc/shadow                            # rech
 **Meta:** la pantalla de la figura del profesor (página 11 de `Imagenes_enunciado_parcial3.pdf`).
 1. `internal/web/templates/dashboard.html` (`html/template`, con escape automático):
    - Título "Gestión de páginas y aplicaciones web".
-   - Un formulario con el campo "Nombre del host" y dos botones: **Aceptar** (`formaction="/instancias"`) y **Publicar**, con el campo "Contenido web (comprimido)" (`accept=".zip"`, `formaction="/instancias/{nombre}/contenido"`, armado con un poco de JS a partir del nombre escrito). Los nombres de los campos son las constantes de A5.
+   - Un **solo** formulario `multipart/form-data` con "Nombre del host" y "Contenido web (comprimido)" (`accept=".zip"`), y dos botones: **Aceptar** (`formaction="/instancias"`) y **Publicar** (`formaction="/contenido"`). Publicar envía el nombre como un campo más, así que no hace falta JavaScript para armar la URL. Los nombres de los campos son `{{.CampoNombre}}` y `{{.CampoArchivo}}` (constantes de A5). La versión provisional de A5 en `internal/web/templates/dashboard.html` ya funciona: B la mejora usando los campos de `web.Vista` y `web.Fila`.
    - Tabla "Instancias disponibles": enlace `http://<host>.cloud.local` (`target="_blank" rel="noopener"`), `IP/24`, nombre de la VM, fecha y hora de creación, estado y el botón **Eliminar** con `confirm()`. (En la figura, la tercera columna dice `paisajes` también en la fila de `negocios`. Es casi seguro un error de copia del profesor: se muestra el nombre de la VM de cada fila.)
    - Estado vacío: "Aún no hay instancias. Escribe un nombre y pulsa Aceptar".
    - Mensajes flash y errores por campo (llegan de A5).
-2. `static/app.js`: mientras haya una instancia en `creando`, `publicando` o `eliminando`, consulta `GET /api/instancias` cada 3 s y actualiza la tabla. Después deja de consultar.
+2. Actualización automática: la versión de A5 recarga la página cada 3 s con `<meta refresh>` mientras `.Refrescar` es verdadero. Opcional: cambiarlo por `static/app.js`, que consulta `GET /api/instancias` y actualiza solo la tabla (no pierde lo que el usuario está escribiendo).
 3. `static/estilos.css`: legible, que funcione con un ancho de 360 px, y un estado con color **y** texto (no solo color).
 4. Revisar con la lista de `web-design-guidelines`: etiquetas en los campos, foco visible y botones con texto.
 
