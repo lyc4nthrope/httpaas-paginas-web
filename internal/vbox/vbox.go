@@ -64,18 +64,20 @@ func Nuevo(c config.Config) *VBox {
 	return v
 }
 
-// argsCrear is the exact command sequence that creates and starts an instance.
+// argsCrear is the exact command sequence that creates and starts an instance. The
+// hostname property goes right after createvm: it is also the ownership marker Eliminar
+// checks, so even a VM left half-created by a failed rollback is recognized as ours.
 func argsCrear(spec puertos.SpecVM, vb config.VBox, dominio, dnsIP string) [][]string {
 	n := spec.Nombre
 	return [][]string{
 		{"createvm", "--name", n, "--ostype", vb.OSType, "--register"},
+		{"guestproperty", "set", n, propHostname, n},
 		{"modifyvm", n, "--memory", strconv.Itoa(vb.MemoriaMB), "--cpus", strconv.Itoa(vb.CPUs),
 			"--firmware", vb.Firmware, "--nic1", "hostonly", "--host-only-adapter1", vb.RedHostOnly,
 			"--nic2", "nat", "--audio-enabled", "off"},
 		{"storagectl", n, "--name", controlador, "--add", "sata", "--controller", "IntelAhci"},
 		{"storageattach", n, "--storagectl", controlador, "--port", "0", "--device", "0",
 			"--type", "hdd", "--medium", vb.DiscoBase},
-		{"guestproperty", "set", n, propHostname, n},
 		{"guestproperty", "set", n, propIP, spec.IP + "/" + strconv.Itoa(spec.Prefijo)},
 		{"guestproperty", "set", n, propDominio, dominio},
 		{"guestproperty", "set", n, propDNS, dnsIP},
@@ -89,7 +91,7 @@ func (v *VBox) Crear(ctx context.Context, spec puertos.SpecVM) error {
 	for i, args := range argsCrear(spec, v.cfg, v.dominio, v.dnsIP) {
 		if _, err := v.run(ctx, args...); err != nil {
 			if i > 0 {
-				if _, rerr := v.run(context.WithoutCancel(ctx), "unregistervm", spec.Nombre, "--delete"); rerr != nil {
+				if rerr := v.borrar(context.WithoutCancel(ctx), spec.Nombre); rerr != nil {
 					err = fmt.Errorf("%w (rollback also failed: %v)", err, rerr)
 				}
 			}
@@ -134,6 +136,15 @@ func (v *VBox) Eliminar(ctx context.Context, nombre string) error {
 	if err != nil || !existe {
 		return err
 	}
+	// Only a VM this service created carries the marker. A foreign VM that happens to use
+	// the same name (created before, or while the job waited in the queue) is never touched.
+	marca, err := v.propiedad(ctx, nombre, propHostname)
+	if err != nil {
+		return err
+	}
+	if marca != nombre {
+		return nil
+	}
 	switch estado {
 	case "poweroff", "aborted":
 	case "saved":
@@ -148,8 +159,30 @@ func (v *VBox) Eliminar(ctx context.Context, nombre string) error {
 			return err
 		}
 	}
-	_, err = v.run(ctx, "unregistervm", nombre, "--delete")
-	return err
+	return v.borrar(ctx, nombre)
+}
+
+// borrar runs unregistervm --delete. VirtualBox keeps the session lock for a moment after
+// a VM changes state (seen on 2026-10-29), so only a lock error is retried; any other
+// error is returned at once so real failures are never hidden.
+func (v *VBox) borrar(ctx context.Context, nombre string) error {
+	const intentos = 15
+	for i := 1; ; i++ {
+		_, err := v.run(ctx, "unregistervm", nombre, "--delete")
+		if err == nil || !esBloqueo(err) || i == intentos {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("vm %s still locked: %w", nombre, err)
+		case <-time.After(v.sondeo):
+		}
+	}
+}
+
+func esBloqueo(err error) bool {
+	m := err.Error()
+	return strings.Contains(m, "VBOX_E_INVALID_OBJECT_STATE") || strings.Contains(m, "already locked")
 }
 
 // Listar returns the names of every registered VM.

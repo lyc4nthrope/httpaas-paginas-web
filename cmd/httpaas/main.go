@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -92,6 +93,20 @@ func construir(ctx context.Context, cfg config.Config, simular bool) (http.Handl
 	svc.Iniciar(ctx)
 	return web.Nuevo(web.Opciones{
 		Servicio: svc, Dominio: cfg.Dominio, Prefijo: cfg.Red.Prefijo, MaxZipMB: cfg.MaxZipMB,
-		ValidarZip: validarZipBasico,
+		ValidarZip: validarZipBasico, Hosts: hostsPermitidos(cfg.Listen),
 	}), nil
+}
+
+// hostsPermitidos are the Host values a browser uses to reach the app: the listen address
+// itself, plus its localhost aliases when it listens on loopback.
+func hostsPermitidos(listen string) []string {
+	host, puerto, err := net.SplitHostPort(listen)
+	if err != nil {
+		return nil // config.Validar already rejects this
+	}
+	hosts := []string{listen}
+	if host == "127.0.0.1" || host == "localhost" {
+		hosts = append(hosts, net.JoinHostPort("127.0.0.1", puerto), net.JoinHostPort("localhost", puerto))
+	}
+	return hosts
 }

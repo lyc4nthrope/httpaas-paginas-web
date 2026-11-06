@@ -23,9 +23,9 @@ const (
 // PuedePublicar reports whether content may be deployed in this state.
 func (e Estado) PuedePublicar() bool { return e == Lista }
 
-// PuedeEliminar reports whether a delete may start in this state. An instance that is
-// still being created or already being deleted is owned by the worker.
-func (e Estado) PuedeEliminar() bool { return e != Creando && e != Eliminando }
+// PuedeEliminar reports whether a delete may start in this state. While an instance is
+// being created, published or deleted, the worker owns it (docs/PLAN.md §4.6).
+func (e Estado) PuedeEliminar() bool { return e != Creando && e != Publicando && e != Eliminando }
 
 // Instancia is one provisioned Apache VM. Nombre is the hostname and the VM name.
 type Instancia struct {

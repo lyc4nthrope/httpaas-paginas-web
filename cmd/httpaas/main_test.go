@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -47,10 +48,17 @@ func TestSimulatedModeServes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Gestión de páginas y aplicaciones web") {
-		t.Fatalf("code=%d", rec.Code)
+	for host, want := range map[string]int{cfg.Listen: http.StatusOK, "localhost:8080": http.StatusOK, "evil.example:8080": http.StatusForbidden} {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Host = host
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != want {
+			t.Fatalf("Host %s: code=%d, want %d", host, rec.Code, want)
+		}
+		if want == http.StatusOK && !strings.Contains(rec.Body.String(), "Gestión de páginas y aplicaciones web") {
+			t.Fatal("dashboard not rendered")
+		}
 	}
 }
 
@@ -72,5 +80,18 @@ func TestValidarZipBasico(t *testing.T) {
 	_ = f.Close()
 	if err := validarZipBasico(ok); err != nil {
 		t.Fatalf("valid zip: %v", err)
+	}
+}
+
+func TestHostsPermitidos(t *testing.T) {
+	tests := map[string][]string{
+		"127.0.0.1:8080":    {"127.0.0.1:8080", "127.0.0.1:8080", "localhost:8080"},
+		"192.168.10.1:9000": {"192.168.10.1:9000"},
+		"sin-puerto":        nil,
+	}
+	for listen, want := range tests {
+		if got := hostsPermitidos(listen); !slices.Equal(got, want) {
+			t.Errorf("hostsPermitidos(%q) = %q, want %q", listen, got, want)
+		}
 	}
 }

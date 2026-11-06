@@ -55,7 +55,7 @@ func TestEstadoPermisos(t *testing.T) {
 	}{
 		{Creando, false, false},
 		{Lista, true, true},
-		{Publicando, false, true},
+		{Publicando, false, false}, // the worker owns the instance while publishing
 		{Eliminando, false, false},
 		{Error, false, true},
 		{Perdida, false, true},

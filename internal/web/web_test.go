@@ -50,6 +50,7 @@ func nueva(t *testing.T) *prueba {
 	p.svc.Iniciar(ctx)
 	p.h = Nuevo(Opciones{
 		Servicio: p.svc, Dominio: "cloud.local", Prefijo: 24, MaxZipMB: 1, Logf: func(string, ...any) {},
+		Hosts: []string{"example.com"}, // httptest's default Host
 		ValidarZip: func(ruta string) error {
 			p.validado = append(p.validado, ruta)
 			return p.zipErr
