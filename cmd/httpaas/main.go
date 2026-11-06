@@ -41,10 +41,15 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	handler, err := construir(ctx, cfg, *simular)
+	ctx, detener := context.WithCancel(ctx)
+	handler, trabajador, err := construir(ctx, cfg, *simular)
 	if err != nil {
+		detener()
 		return err
 	}
+	// On any exit, stop the worker and wait until its current job is done, so the store
+	// is never left half-written.
+	defer func() { detener(); <-trabajador }()
 
 	srv := &http.Server{Addr: cfg.Listen, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
@@ -66,12 +71,12 @@ func run(ctx context.Context, args []string) error {
 
 // construir wires the service. Real adapters arrive in phase A7 (vbox from A6,
 // dns from B6, publicar from C7); until then only simulated mode runs.
-func construir(ctx context.Context, cfg config.Config, simular bool) (http.Handler, error) {
+func construir(ctx context.Context, cfg config.Config, simular bool) (http.Handler, <-chan struct{}, error) {
 	if !simular {
 		if err := cfg.VerificarArchivos(); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return nil, errors.New("el modo real se conecta en la fase A7; por ahora usa -simular")
+		return nil, nil, errors.New("el modo real se conecta en la fase A7; por ahora usa -simular")
 	}
 
 	var rango []string
@@ -80,7 +85,7 @@ func construir(ctx context.Context, cfg config.Config, simular bool) (http.Handl
 	}
 	alm, err := almacen.Abrir("data/simulado.json", rango) // never mixed with the real store
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	hip, dns, pub := simulados(2 * time.Second)
 	svc := instancias.Nuevo(instancias.Opciones{
@@ -88,13 +93,13 @@ func construir(ctx context.Context, cfg config.Config, simular bool) (http.Handl
 		Max: cfg.MaxInstancias, Prefijo: cfg.Red.Prefijo,
 	})
 	if err := svc.Reconciliar(ctx); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	svc.Iniciar(ctx)
+	trabajador := svc.Iniciar(ctx)
 	return web.Nuevo(web.Opciones{
 		Servicio: svc, Dominio: cfg.Dominio, Prefijo: cfg.Red.Prefijo, MaxZipMB: cfg.MaxZipMB,
 		ValidarZip: validarZipBasico, Hosts: hostsPermitidos(cfg.Listen),
-	}), nil
+	}), trabajador, nil
 }
 
 // hostsPermitidos are the Host values a browser uses to reach the app: the listen address

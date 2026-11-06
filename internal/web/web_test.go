@@ -46,8 +46,10 @@ func nueva(t *testing.T) *prueba {
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	p.cancel = cancel
-	t.Cleanup(cancel)
-	p.svc.Iniciar(ctx)
+	terminado := p.svc.Iniciar(ctx)
+	// Registered after t.TempDir, so it runs first: the worker stops writing the store
+	// before the temp folder is removed (this raced on CI, 2026-11-06).
+	t.Cleanup(func() { cancel(); <-terminado })
 	p.h = Nuevo(Opciones{
 		Servicio: p.svc, Dominio: "cloud.local", Prefijo: 24, MaxZipMB: 1, Logf: func(string, ...any) {},
 		Hosts: []string{"example.com"}, // httptest's default Host

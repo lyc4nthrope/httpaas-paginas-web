@@ -33,7 +33,7 @@ func TestRunRejectsMissingConfig(t *testing.T) {
 }
 
 func TestRealModeIsNotWiredYet(t *testing.T) {
-	_, err := construir(context.Background(), ejemplo(t), false)
+	_, _, err := construir(context.Background(), ejemplo(t), false)
 	if err == nil {
 		t.Fatal("real mode must refuse to start until phase A7")
 	}
@@ -43,11 +43,12 @@ func TestSimulatedModeServes(t *testing.T) {
 	cfg := ejemplo(t)    // read before changing directory: the path is relative
 	t.Chdir(t.TempDir()) // data/simulado.json goes to a temp dir
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	h, err := construir(ctx, cfg, true)
+	h, trabajador, err := construir(ctx, cfg, true)
 	if err != nil {
+		cancel()
 		t.Fatal(err)
 	}
+	defer func() { cancel(); <-trabajador }() // before t.Chdir's temp dir is removed
 	for host, want := range map[string]int{cfg.Listen: http.StatusOK, "localhost:8080": http.StatusOK, "evil.example:8080": http.StatusForbidden} {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Host = host

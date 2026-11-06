@@ -88,12 +88,17 @@ func Nuevo(o Opciones) *Servicio {
 	return &Servicio{o: o, trabajos: make(chan trabajo, 32)}
 }
 
-// Iniciar runs the worker until ctx ends.
-func (s *Servicio) Iniciar(ctx context.Context) {
+// Iniciar runs the worker until ctx ends. The returned channel is closed once the worker
+// has really stopped, including the job it was running: wait on it before exiting or
+// removing the data folder, so the store is never cut in the middle of a write.
+func (s *Servicio) Iniciar(ctx context.Context) <-chan struct{} {
+	terminado := make(chan struct{})
 	go func() {
+		defer close(terminado)
 		for s.siguiente(ctx) {
 		}
 	}()
+	return terminado
 }
 
 // siguiente runs one queued job. It returns false when ctx ends.

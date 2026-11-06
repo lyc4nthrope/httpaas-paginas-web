@@ -300,8 +300,15 @@ func TestReconciliar(t *testing.T) {
 func TestWorkerRunsUntilCanceled(t *testing.T) {
 	e := nuevoEntorno(t, 3)
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	e.s.Iniciar(ctx)
+	terminado := e.s.Iniciar(ctx)
+	defer func() {
+		cancel()
+		select {
+		case <-terminado: // the worker reports that it really stopped
+		case <-time.After(2 * time.Second):
+			t.Error("the worker did not report that it stopped after cancel")
+		}
+	}()
 	_, _ = e.s.SolicitarCrear("paisajes")
 	deadline := time.Now().Add(2 * time.Second)
 	for e.estado(t, "paisajes").Estado != dominio.Lista {
