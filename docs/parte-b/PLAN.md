@@ -134,6 +134,22 @@ ssh httpaas@192.168.10.10 sudo cat /etc/shadow                            # rech
 **Verificación:** `make check` y `make vm-test` en verde.
 **Commit:** `feat(dns): implement dns port over ssh and httpaas-dns`
 
+### B6.5 Validación de la VM `ns` ⬜ (H2)
+**Meta:** detectar si `ns` responde **antes** de que el usuario cree una VM que fallará un minuto después en el paso DNS, con un mensaje accionable en vez de un `error` a medias.
+1. En `internal/dns`, método `Comprobar(ctx) error` sobre el tipo concreto — **no se añade a `puertos.DNS`**, así que el contrato §4.2 no cambia y no hace falta acuerdo del equipo. Reutiliza lo de B6:
+   - `Resolver(ctx, dominio.FQDN("ns", cfg.Dominio))` debe devolver exactamente `cfg.DNS.IP`.
+   - No responde (timeout/conexión rechazada) o devuelve otra IP → error con la receta de recuperación incrustada:
+     > `no se contacta la VM DNS en 192.168.10.10. Si la VM ns no existe: VBoxManage import ns.ova (B4) o créala con deploy/ns/instalar.sh (B1–B3)`
+   - Una sola consulta cubre los tres fallos: VM apagada, `named` caído, zona rota o sin el registro estático `ns → .10`.
+   - Opcional: sonda profunda `ex.Run(sudo httpaas-dns listar)` para detectar SSH/sudo/`httpaas-dns` rotos (solo avisa, no bloquea).
+2. Pruebas de tabla con `executor.Fake`: OK · caído · IP incorrecta.
+3. **Coordinación con A (se engancha en A7):** `main.go` llama a `Comprobar` tras `Reconciliar()` y pasa el resultado a `web.Vista`; B pone el banner en `dashboard.html`. Opción para A: llamarlo también en `SolicitarCrear` para fallar con 422 antes de crear la VM. En modo `-simular` no se construye el adaptador real → sin banner, automáticamente.
+4. **No se crea ni auto-repara la VM** — la receta queda en el mensaje. D14: el script es reconstrucción para humanos, no runtime del producto.
+
+**Verificación:** `make check`. Prueba `vm`: `ns` encendida → `Comprobar` = nil; `VBoxManage controlvm ns poweroff` → error con el mensaje exacto; `startvm` de nuevo → nil.
+📸 **B-12** — banner con `ns` apagada (y una celda más en la tabla de capturas del §9 del plan general: `B-09 … B-12`).
+**Commit:** `feat(dns): check the ns vm before using it`
+
 ### B7. Dashboard ⬜ (H3)
 **Meta:** la pantalla de la figura del profesor (página 11 de `Imagenes_enunciado_parcial3.pdf`).
 1. `internal/web/templates/dashboard.html` (`html/template`, con escape automático):

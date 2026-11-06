@@ -370,7 +370,7 @@ El enunciado pide "capturas de pantalla paso a paso". Cada fase de cada plan tie
 | 1. Arquitectura y red | P-01, C-12 (diagrama) |
 | 2. Servidor DNS Bind9 | B-01 … B-08 |
 | 3. Plantilla Apache y disco multiconexión | C-01 … C-11 |
-| 4. Aplicación web de gestión | A-01 … A-10, B-09 … B-11 |
+| 4. Aplicación web de gestión | A-01 … A-10, B-09 … B-12 |
 | 5. Prueba de punta a punta | A-11 … A-16 |
 | 6. Problemas, mejoras y trabajo futuro | — (cada uno anota en `docs/problemas.md` cuando le pasa algo) |
 | 7. Aprendizajes | — (cada uno escribe su párrafo en H5) |
