@@ -34,6 +34,9 @@ func TestValidarRejects(t *testing.T) {
 		campo string
 	}{
 		{"listen without port", func(c *Config) { c.Listen = "127.0.0.1" }, "listen"},
+		{"listen on every interface", func(c *Config) { c.Listen = "0.0.0.0:8080" }, "listen"},
+		{"listen without host", func(c *Config) { c.Listen = ":8080" }, "listen"},
+		{"listen on ipv6 wildcard", func(c *Config) { c.Listen = "[::]:8080" }, "listen"},
 		{"uppercase domain", func(c *Config) { c.Dominio = "Cloud.Local" }, "dominio"},
 		{"base without trailing dot", func(c *Config) { c.Red.Base = "192.168.10" }, "red.base"},
 		{"base not ipv4", func(c *Config) { c.Red.Base = "300.1.1." }, "red.base"},

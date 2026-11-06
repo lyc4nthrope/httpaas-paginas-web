@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -32,7 +33,7 @@ func TestRunRejectsMissingConfig(t *testing.T) {
 }
 
 func TestRealModeIsNotWiredYet(t *testing.T) {
-	_, err := construir(context.Background(), ejemplo(t), false)
+	_, _, err := construir(context.Background(), ejemplo(t), false)
 	if err == nil {
 		t.Fatal("real mode must refuse to start until phase A7")
 	}
@@ -42,15 +43,23 @@ func TestSimulatedModeServes(t *testing.T) {
 	cfg := ejemplo(t)    // read before changing directory: the path is relative
 	t.Chdir(t.TempDir()) // data/simulado.json goes to a temp dir
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	h, err := construir(ctx, cfg, true)
+	h, trabajador, err := construir(ctx, cfg, true)
 	if err != nil {
+		cancel()
 		t.Fatal(err)
 	}
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Gestión de páginas y aplicaciones web") {
-		t.Fatalf("code=%d", rec.Code)
+	defer func() { cancel(); <-trabajador }() // before t.Chdir's temp dir is removed
+	for host, want := range map[string]int{cfg.Listen: http.StatusOK, "localhost:8080": http.StatusOK, "evil.example:8080": http.StatusForbidden} {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Host = host
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != want {
+			t.Fatalf("Host %s: code=%d, want %d", host, rec.Code, want)
+		}
+		if want == http.StatusOK && !strings.Contains(rec.Body.String(), "Gestión de páginas y aplicaciones web") {
+			t.Fatal("dashboard not rendered")
+		}
 	}
 }
 
@@ -72,5 +81,18 @@ func TestValidarZipBasico(t *testing.T) {
 	_ = f.Close()
 	if err := validarZipBasico(ok); err != nil {
 		t.Fatalf("valid zip: %v", err)
+	}
+}
+
+func TestHostsPermitidos(t *testing.T) {
+	tests := map[string][]string{
+		"127.0.0.1:8080":    {"127.0.0.1:8080", "127.0.0.1:8080", "localhost:8080"},
+		"192.168.10.1:9000": {"192.168.10.1:9000"},
+		"sin-puerto":        nil,
+	}
+	for listen, want := range tests {
+		if got := hostsPermitidos(listen); !slices.Equal(got, want) {
+			t.Errorf("hostsPermitidos(%q) = %q, want %q", listen, got, want)
+		}
 	}
 }

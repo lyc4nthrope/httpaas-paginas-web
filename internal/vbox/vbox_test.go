@@ -42,10 +42,10 @@ func TestArgsCrear(t *testing.T) {
 	got := argsCrear(puertos.SpecVM{Nombre: "paisajes", IP: "192.168.10.30", Prefijo: 24}, vb, "cloud.local", "192.168.10.10")
 	want := []string{
 		"createvm --name paisajes --ostype Debian_64 --register",
+		"guestproperty set paisajes /httpaas/hostname paisajes", // ownership marker first (review 2, finding 1)
 		"modifyvm paisajes --memory 512 --cpus 1 --firmware bios --nic1 hostonly --host-only-adapter1 vboxnet0 --nic2 nat --audio-enabled off",
 		"storagectl paisajes --name SATA --add sata --controller IntelAhci",
 		"storageattach paisajes --storagectl SATA --port 0 --device 0 --type hdd --medium /vms/httpaas-base/ApacheServer.vdi",
-		"guestproperty set paisajes /httpaas/hostname paisajes",
 		"guestproperty set paisajes /httpaas/ip 192.168.10.30/24",
 		"guestproperty set paisajes /httpaas/dominio cloud.local",
 		"guestproperty set paisajes /httpaas/dns 192.168.10.10",
@@ -64,7 +64,7 @@ func TestArgsCrear(t *testing.T) {
 func TestArgsKeepPathsWithSpacesAsOneArgument(t *testing.T) {
 	c := vb
 	c.DiscoBase = "/home/u/VirtualBox VMs/httpaas-base/ApacheServer.vdi"
-	attach := argsCrear(puertos.SpecVM{Nombre: "x"}, c, "cloud.local", "192.168.10.10")[3]
+	attach := argsCrear(puertos.SpecVM{Nombre: "x"}, c, "cloud.local", "192.168.10.10")[4]
 	if attach[len(attach)-1] != c.DiscoBase {
 		t.Fatalf("the disk path must travel as one argument: %q", attach)
 	}
@@ -160,10 +160,10 @@ func TestEliminar(t *testing.T) {
 		estado []string // successive VMState answers
 		want   []string
 	}{
-		{"powered off", []string{"poweroff"}, []string{"showvminfo paisajes --machinereadable", "unregistervm paisajes --delete"}},
-		{"saved", []string{"saved"}, []string{"showvminfo paisajes --machinereadable", "discardstate paisajes", "unregistervm paisajes --delete"}},
+		{"powered off", []string{"poweroff"}, []string{"showvminfo paisajes --machinereadable", marca, "unregistervm paisajes --delete"}},
+		{"saved", []string{"saved"}, []string{"showvminfo paisajes --machinereadable", marca, "discardstate paisajes", "unregistervm paisajes --delete"}},
 		{"running", []string{"running", "stopping", "poweroff"}, []string{
-			"showvminfo paisajes --machinereadable", "controlvm paisajes poweroff",
+			"showvminfo paisajes --machinereadable", marca, "controlvm paisajes poweroff",
 			"showvminfo paisajes --machinereadable", "showvminfo paisajes --machinereadable",
 			"unregistervm paisajes --delete"}},
 	}
@@ -171,6 +171,9 @@ func TestEliminar(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			estados := tt.estado
 			g := &guion{respuesta: func(a []string) (string, error) {
+				if a[0] == "guestproperty" {
+					return "Value: paisajes\n", nil // created by this service
+				}
 				if a[0] != "showvminfo" {
 					return "", nil
 				}
@@ -187,6 +190,35 @@ func TestEliminar(t *testing.T) {
 				t.Fatalf("calls:\n got  %q\n want %q", g.llamadas, tt.want)
 			}
 		})
+	}
+}
+
+const marca = "guestproperty get paisajes /httpaas/hostname"
+
+// Review 2, finding 1: a VM with the same name that this service did not create (no
+// marker) must never be powered off or deleted, whenever it appeared.
+func TestEliminarLeavesForeignVMsAlone(t *testing.T) {
+	for _, valor := range []string{"No value set!\n", "Value: otro-nombre\n"} {
+		g := &guion{respuesta: func(a []string) (string, error) {
+			switch a[0] {
+			case "showvminfo":
+				return `VMState="running"` + "\n", nil
+			case "guestproperty":
+				return valor, nil
+			}
+			return "", nil
+		}}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second) // fail, never hang, if the VM is touched
+		err := nuevo(g).Eliminar(ctx, "paisajes")
+		cancel()
+		if err != nil {
+			t.Fatalf("marker %q: %v", valor, err)
+		}
+		for _, c := range g.llamadas {
+			if strings.HasPrefix(c, "controlvm") || strings.HasPrefix(c, "unregistervm") || strings.HasPrefix(c, "discardstate") {
+				t.Fatalf("marker %q: a foreign VM was touched: %v", valor, g.llamadas)
+			}
+		}
 	}
 }
 

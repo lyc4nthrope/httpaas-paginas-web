@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/dominio"
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/instancias"
@@ -39,7 +40,10 @@ type Opciones struct {
 	// ValidarZip checks an uploaded file before it is queued. Part C provides the real
 	// one (internal/publicar); it must return *dominio.ErrorValidacion for bad input.
 	ValidarZip func(ruta string) error
-	Logf       func(format string, args ...any)
+	// Hosts are the exact Host values the app is served on (e.g. "127.0.0.1:8080").
+	// Any other Host is refused (DNS rebinding); an empty list refuses everything.
+	Hosts []string
+	Logf  func(format string, args ...any)
 }
 
 type servidor struct {
@@ -60,7 +64,7 @@ func Nuevo(o Opciones) http.Handler {
 	mux.HandleFunc("POST /instancias", s.crear)
 	mux.HandleFunc("POST /contenido", s.publicar)
 	mux.HandleFunc("POST /instancias/{nombre}/eliminar", s.eliminar)
-	return seguridad(mux, int64(o.MaxZipMB)<<20)
+	return seguridad(mux, int64(o.MaxZipMB)<<20, o.Hosts)
 }
 
 // Fila is one instance as the dashboard shows it.
@@ -131,6 +135,13 @@ func (s *servidor) api(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *servidor) crear(w http.ResponseWriter, r *http.Request) {
+	if err := leerFormulario(r, dominio.CampoNombre); err != nil {
+		s.fallo(w, r, "", err)
+		return
+	}
+	if r.MultipartForm != nil {
+		defer r.MultipartForm.RemoveAll()
+	}
 	nombre := r.FormValue(dominio.CampoNombre)
 	if _, err := s.o.Servicio.SolicitarCrear(nombre); err != nil {
 		s.fallo(w, r, nombre, err)
@@ -140,17 +151,13 @@ func (s *servidor) crear(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *servidor) publicar(w http.ResponseWriter, r *http.Request) {
-	// Parse explicitly: FormValue would swallow a "body too large" error and the user
-	// would get "choose a file" instead of "file too large".
-	if err := r.ParseMultipartForm(8 << 20); err != nil {
-		var tooBig *http.MaxBytesError
-		if !errors.As(err, &tooBig) {
-			err = &dominio.ErrorValidacion{Campo: dominio.CampoArchivo, Mensaje: "no se pudo leer el formulario; vuelve a elegir el archivo"}
-		}
+	if err := leerFormulario(r, dominio.CampoArchivo); err != nil {
 		s.fallo(w, r, "", err)
 		return
 	}
-	defer r.MultipartForm.RemoveAll()
+	if r.MultipartForm != nil {
+		defer r.MultipartForm.RemoveAll()
+	}
 	nombre := r.FormValue(dominio.CampoNombre)
 	archivo, _, err := r.FormFile(dominio.CampoArchivo)
 	if err != nil {
@@ -216,6 +223,26 @@ func (s *servidor) render(w http.ResponseWriter, code int, v Vista) {
 	if err := s.tmpl.ExecuteTemplate(w, "dashboard.html", v); err != nil {
 		s.o.Logf("render dashboard: %v", err)
 	}
+}
+
+// leerFormulario parses the form explicitly. FormValue would swallow a "body too large"
+// error, and the user would get a message about the wrong field. campo is the field the
+// error is shown on: the one the user acted on.
+func leerFormulario(r *http.Request, campo string) error {
+	var err error
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		err = r.ParseMultipartForm(8 << 20)
+	} else {
+		err = r.ParseForm()
+	}
+	if err == nil {
+		return nil
+	}
+	var tooBig *http.MaxBytesError
+	if errors.As(err, &tooBig) {
+		return err
+	}
+	return &dominio.ErrorValidacion{Campo: campo, Mensaje: "no se pudo leer el formulario; vuelve a intentarlo"}
 }
 
 func redirigir(w http.ResponseWriter, r *http.Request, aviso, nombre string) {

@@ -12,7 +12,9 @@ type Hipervisor interface {
 	// EsperarLista blocks until /httpaas/estado == "listo" or ctx ends; "error:*" is returned as an error.
 	EsperarLista(ctx context.Context, nombre string) error
 	// Eliminar powers off (if running) and deletes the VM with its differencing disk.
-	// A VM that does not exist is not an error.
+	// A VM that does not exist is not an error. Only VMs created by this service (guest
+	// property /httpaas/hostname = nombre) are deleted; a foreign VM with the same name is
+	// left untouched, and that is not an error either.
 	Eliminar(ctx context.Context, nombre string) error
 	// Listar returns the names of the VMs registered in VirtualBox.
 	Listar(ctx context.Context) ([]string, error)

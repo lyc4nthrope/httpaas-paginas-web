@@ -84,8 +84,12 @@ func (c Config) Validar() error {
 	var errs []error
 	add := func(campo, msg string) { errs = append(errs, fmt.Errorf("%s: %s", campo, msg)) }
 
-	if _, _, err := net.SplitHostPort(c.Listen); err != nil {
+	if host, _, err := net.SplitHostPort(c.Listen); err != nil {
 		add("listen", "debe ser host:puerto, por ejemplo 127.0.0.1:8080")
+	} else if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
+		// The browser never sends 0.0.0.0 or "" as Host, so the Host allowlist (DNS
+		// rebinding protection) would refuse every request.
+		add("listen", "usa una dirección concreta, por ejemplo 127.0.0.1:8080; 0.0.0.0 o un host vacío dejarían la consola inaccesible")
 	}
 	if !dominioRE.MatchString(c.Dominio) {
 		add("dominio", "debe ser un dominio en minúsculas, por ejemplo cloud.local")

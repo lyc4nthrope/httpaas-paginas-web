@@ -98,7 +98,7 @@ func TestCrearHappyPath(t *testing.T) {
 	if got := e.estado(t, "paisajes"); got.Estado != dominio.Lista || got.Error != "" {
 		t.Fatalf("after create: %+v", got)
 	}
-	want := []string{"Crear paisajes 192.168.10.30/24", "EsperarLista paisajes"}
+	want := []string{"Listar", "Crear paisajes 192.168.10.30/24", "EsperarLista paisajes"} // Listar: name check (review finding 1)
 	if !slices.Equal(e.hip.Llamadas(), want) {
 		t.Fatalf("hipervisor calls = %v", e.hip.Llamadas())
 	}
@@ -123,7 +123,7 @@ func TestCrearFailures(t *testing.T) {
 		preparo func(e *entorno)
 		mensaje string
 	}{
-		{"vm creation fails", func(e *entorno) { e.hip.FallarEn("Crear", errors.New("disk locked")) }, "no se pudo crear la máquina virtual: disk locked"},
+		{"vm creation fails", func(e *entorno) { e.hip.FallarEn("Crear", errors.New("disk locked")) }, "no se pudo crear la máquina virtual"},
 		{"vm never ready", func(e *entorno) { e.hip.FallarEn("EsperarLista", errors.New("error:linea-12")) }, "no terminó de configurarse"},
 		{"dns add fails", func(e *entorno) { e.dns.FallarEn("Agregar", errors.New("ssh down")) }, "no se pudo registrar el nombre en el DNS"},
 		{"dns does not resolve", func(e *entorno) { e.dns.FallarEn("Resolver", errors.New("nxdomain")) }, "el DNS no resuelve"},
@@ -250,7 +250,7 @@ func TestEliminarTriesEveryStepAndCanBeRetried(t *testing.T) {
 	_ = e.s.SolicitarEliminar("paisajes")
 	e.correr(t, 1)
 	got := e.estado(t, "paisajes")
-	if got.Estado != dominio.Error || !strings.Contains(got.Error, "ns apagado") {
+	if got.Estado != dominio.Error || !strings.Contains(got.Error, "quitar el nombre del DNS") {
 		t.Fatalf("got %+v", got)
 	}
 	if !slices.Contains(e.hip.Llamadas(), "Eliminar paisajes") || len(e.olvidado) != 1 {
@@ -300,8 +300,15 @@ func TestReconciliar(t *testing.T) {
 func TestWorkerRunsUntilCanceled(t *testing.T) {
 	e := nuevoEntorno(t, 3)
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	e.s.Iniciar(ctx)
+	terminado := e.s.Iniciar(ctx)
+	defer func() {
+		cancel()
+		select {
+		case <-terminado: // the worker reports that it really stopped
+		case <-time.After(2 * time.Second):
+			t.Error("the worker did not report that it stopped after cancel")
+		}
+	}()
 	_, _ = e.s.SolicitarCrear("paisajes")
 	deadline := time.Now().Add(2 * time.Second)
 	for e.estado(t, "paisajes").Estado != dominio.Lista {

@@ -38,19 +38,25 @@ func (s *SSH) Run(ctx context.Context, c Command) (Result, error) {
 	args := append(s.options("-p"), s.target(), "--", c.String())
 	out, errOut, code, runErr := s.exec(ctx, "ssh", args, c.Stdin)
 	res := Result{Cmd: c.String(), Stdout: out, Stderr: errOut, ExitCode: code, Duration: time.Since(start)}
-	switch {
-	case runErr != nil:
-		// Solo el código 255 es fallo de transporte SSH; el resto son códigos del comando remoto.
-		if code == 255 {
-			return res, s.channelError(errOut, runErr)
-		}
-		// Código ≠ 255 → comando remoto falló, pero el canal SSH funcionó: devolvemos el Result normal.
-		return res, nil
-	case code == 255:
-		return res, s.channelError(errOut, nil)
-	default:
-		return res, nil
+	if transporteFallo(code, runErr) {
+		return res, s.channelError(errOut, runErr)
 	}
+	return res, nil
+}
+
+// transporteFallo reports whether the client itself failed (connection, missing binary,
+// killed by a timeout or signal) rather than the remote command. Only a real process
+// exit with a code other than 255 is the remote command's own result; anything else must
+// never be read as success.
+func transporteFallo(code int, runErr error) bool {
+	if code == 255 {
+		return true
+	}
+	if runErr == nil {
+		return false
+	}
+	var ee *exec.ExitError
+	return !errors.As(runErr, &ee) || ee.ExitCode() < 0
 }
 
 // CopyTo copies a host file into the VM and CopyFrom retrieves one, both with
@@ -67,9 +73,9 @@ func (s *SSH) CopyFrom(ctx context.Context, remotePath, localPath string) error 
 func (s *SSH) copy(ctx context.Context, src, dst string) error {
 	_, errOut, code, err := s.exec(ctx, "scp", append(s.options("-P"), "--", src, dst), "")
 	switch {
-	case err != nil, code == 255:
+	case transporteFallo(code, err):
 		return &ChannelError{Msg: "No se pudo copiar un archivo por SSH con " + s.target(), Err: errors.New(detail(errOut, err))}
-	case code != 0:
+	case err != nil || code != 0:
 		return errors.New("scp " + src + " to " + dst + ": " + detail(errOut, nil))
 	}
 	return nil
