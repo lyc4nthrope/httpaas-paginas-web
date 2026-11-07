@@ -1,0 +1,14 @@
+<VirtualHost *:80>
+    ServerName __HOSTNAME__.__DOMAIN__
+    ServerAlias __HOSTNAME__
+    DocumentRoot /var/www/__HOSTNAME__
+
+    ErrorLog ${APACHE_LOG_DIR}/__HOSTNAME___error.log
+    CustomLog ${APACHE_LOG_DIR}/__HOSTNAME___access.log combined
+
+    <Directory /var/www/__HOSTNAME__>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>

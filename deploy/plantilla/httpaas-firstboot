@@ -1,0 +1,117 @@
+#!/bin/bash
+set -e
+
+get_prop() {
+    local prop="$1"
+    local val=""
+    local retries=30
+    while [ $retries -gt 0 ]; do
+        val=$(VBoxControl --nologo guestproperty get "$prop" 2>/dev/null | awk '/^Value:/ {print $2}' || true)
+        if [ -n "$val" ] && [ "$val" != "No" ]; then
+            echo "$val"
+            return 0
+        fi
+        sleep 1
+        ((retries--))
+    done
+    echo ""
+}
+
+set_prop() {
+    local prop="$1"
+    local val="$2"
+    VBoxControl --nologo guestproperty set "$prop" "$val" 2>/dev/null || true
+}
+
+HOSTNAME_PROP=$(get_prop "/httpaas/hostname")
+
+# Si la propiedad está vacía, es la VM plantilla base -> salir con 0 sin hacer nada
+if [ -z "$HOSTNAME_PROP" ] || [ "$HOSTNAME_PROP" = "No" ]; then
+    exit 0
+fi
+
+IP_PROP=$(get_prop "/httpaas/ip")
+DOMAIN_PROP=$(get_prop "/httpaas/domain")
+DNS_PROP=$(get_prop "/httpaas/dns")
+
+# Validaciones (Hostname D10 regex, IP 192.168.10.N/24, dominio y DNS)
+VALID=1
+if ! [[ "$HOSTNAME_PROP" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]]; then VALID=0; fi
+if ! [[ "$IP_PROP" =~ ^192\.168\.10\.([0-9]{1,3})/24$ ]]; then VALID=0; fi
+if [ -z "$DOMAIN_PROP" ] || [ -z "$DNS_PROP" ]; then VALID=0; fi
+
+if [ $VALID -eq 0 ]; then
+    set_prop "/httpaas/estado" "error:datos-invalidos"
+    exit 1
+fi
+
+IP_NUM="${BASH_REMATCH[1]}"
+
+# Verificar si ya fue aplicado en este host previamente (reinicio estándar)
+if [ -f /etc/httpaas/aplicado ]; then
+    APLICADO_CONTENT=$(cat /etc/httpaas/aplicado)
+    if [ "$APLICADO_CONTENT" = "$HOSTNAME_PROP $IP_PROP" ]; then
+        set_prop "/httpaas/estado" "listo"
+        exit 0
+    fi
+fi
+
+# Iniciar configuración y activar trap en caso de error
+set_prop "/httpaas/estado" "configurando"
+
+error_handler() {
+    local line=$1
+    set_prop "/httpaas/estado" "error:linea-$line"
+    exit 1
+}
+trap 'error_handler $LINENO' ERR
+
+# 1. Cambiar Hostname y /etc/hosts
+hostnamectl set-hostname "$HOSTNAME_PROP"
+if grep -q "127.0.1.1" /etc/hosts; then
+    sed -i "s/127\.0\.1\.1.*/127.0.1.1\t${HOSTNAME_PROP}.${DOMAIN_PROP}\t${HOSTNAME_PROP}/" /etc/hosts
+else
+    echo -e "127.0.1.1\t${HOSTNAME_PROP}.${DOMAIN_PROP}\t${HOSTNAME_PROP}" >> /etc/hosts
+fi
+
+# 2. Generar identidades únicas (SSH host keys y machine-id)
+rm -f /etc/ssh/ssh_host_*
+ssh-keygen -A
+truncate -s 0 /etc/machine-id
+systemd-machine-id-setup
+
+# 3. Reconfigurar Red en orden estricto
+ifdown enp0s3 2>/dev/null || ip addr flush dev enp0s3
+
+cat << NETEOF > /etc/network/interfaces.d/enp0s3
+auto enp0s3
+iface enp0s3 inet static
+    address 192.168.10.${IP_NUM}
+    netmask 255.255.255.0
+NETEOF
+
+ifup enp0s3
+
+cat << RESEOF > /etc/resolv.conf
+nameserver ${DNS_PROP}
+search ${DOMAIN_PROP}
+RESEOF
+
+# 4. Configurar Apache VirtualHost
+mkdir -p "/var/www/${HOSTNAME_PROP}"
+echo "Instancia ${HOSTNAME_PROP} lista. Aún no hay contenido publicado." > "/var/www/${HOSTNAME_PROP}/index.html"
+chown -R www-data:www-data "/var/www/${HOSTNAME_PROP}"
+
+sed -e "s/__HOSTNAME__/${HOSTNAME_PROP}/g" \
+    -e "s/__DOMAIN__/${DOMAIN_PROP}/g" \
+    /etc/httpaas/vhost.conf.tmpl > "/etc/apache2/sites-available/${HOSTNAME_PROP}.conf"
+
+a2ensite "${HOSTNAME_PROP}.conf"
+a2dissite 000-default.conf 2>/dev/null || a2dissite 000-default 2>/dev/null || true
+apache2ctl configtest
+systemctl reload apache2
+
+# 5. Reiniciar SSH y registrar estado exitoso
+systemctl restart ssh
+echo "$HOSTNAME_PROP $IP_PROP" > /etc/httpaas/aplicado
+set_prop "/httpaas/estado" "listo"
