@@ -1,0 +1,107 @@
+#!/bin/bash
+set -e
+
+ZIP_PATH="$1"
+
+# 1. Validar nombre y ruta del archivo ZIP
+if ! [[ "$ZIP_PATH" =~ ^/home/httpaas/subidas/[a-zA-Z0-9-]{8,64}\.zip$ ]] || [ ! -f "$ZIP_PATH" ]; then
+    echo "Error: archivo zip invalido o no existe." >&2
+    exit 2
+fi
+
+# 2. Validar que la instancia ya completo su primer arranque
+APLICADO_FILE="/etc/httpaas/aplicado"
+if [ ! -f "$APLICADO_FILE" ]; then
+    echo "Error: la instancia no ha completado su primer arranque." >&2
+    exit 3
+fi
+
+H=$(awk '{print $1}' "$APLICADO_FILE")
+if ! [[ "$H" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]]; then
+    echo "Error: hostname invalido en aplicado." >&2
+    exit 3
+fi
+
+# 3. Inspeccionar el ZIP con unzip -Z1 y zipinfo
+ENTRIES=$(unzip -Z1 "$ZIP_PATH")
+
+while IFS= read -r entry; do
+    if [[ "$entry" =~ ^/ ]] || [[ "$entry" =~ \.\. ]]; then
+        echo "Error: ruta peligrosa o traversal detectada en el zip." >&2
+        exit 2
+    fi
+done <<< "$ENTRIES"
+
+if unzip -Z "$ZIP_PATH" | grep -E "^l" >/dev/null 2>&1; then
+    echo "Error: el zip contiene enlaces simbolicos." >&2
+    exit 2
+fi
+
+SUMMARY=$(unzip -Zt "$ZIP_PATH" 2>/dev/null || true)
+NUM_FILES=$(echo "$SUMMARY" | awk '{print $1}')
+TOTAL_BYTES=$(echo "$SUMMARY" | awk '{print $3}')
+
+if [ -z "$NUM_FILES" ] || [ "$NUM_FILES" -gt 2000 ]; then
+    echo "Error: mas de 2000 archivos en el zip." >&2
+    exit 2
+fi
+
+if [ -z "$TOTAL_BYTES" ] || [ "$TOTAL_BYTES" -gt 209715200 ]; then
+    echo "Error: tamaño descomprimido mayor a 200MB." >&2
+    exit 2
+fi
+
+# 4. Descompresión atómica temporal
+TMP_DIR=$(mktemp -d /var/www/.tmp-$H-XXXXXX)
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+unzip -q "$ZIP_PATH" -d "$TMP_DIR"
+
+CONTENT_ROOT="$TMP_DIR"
+if [ ! -f "$CONTENT_ROOT/index.html" ]; then
+    ITEMS=("$TMP_DIR"/*)
+    if [ ${#ITEMS[@]} -eq 1 ] && [ -d "${ITEMS[0]}" ]; then
+        SUBDIR="${ITEMS[0]}"
+        if [ -f "$SUBDIR/index.html" ]; then
+            CONTENT_ROOT="$SUBDIR"
+        fi
+    fi
+fi
+
+if [ ! -f "$CONTENT_ROOT/index.html" ]; then
+    echo "Error: no se encontro index.html en la raiz del sitio." >&2
+    exit 2
+fi
+
+FILE_COUNT=$(find "$CONTENT_ROOT" -type f | wc -l)
+
+# 5. Reemplazo atómico de sitio y recarga de Apache
+chown -R www-data:www-data "$CONTENT_ROOT"
+find "$CONTENT_ROOT" -type d -exec chmod 0755 {} +
+find "$CONTENT_ROOT" -type f -exec chmod 0644 {} +
+
+TARGET_DIR="/var/www/$H"
+OLD_DIR="/var/www/.old-$H"
+
+rm -rf "$OLD_DIR"
+if [ -d "$TARGET_DIR" ]; then
+    mv "$TARGET_DIR" "$OLD_DIR"
+fi
+
+mv "$CONTENT_ROOT" "$TARGET_DIR"
+
+if ! apache2ctl configtest >/dev/null 2>&1 || ! systemctl reload apache2 >/dev/null 2>&1; then
+    echo "Error: fallo al recargar apache, revirtiendo cambios." >&2
+    rm -rf "$TARGET_DIR"
+    if [ -d "$OLD_DIR" ]; then
+        mv "$OLD_DIR" "$TARGET_DIR"
+    fi
+    exit 3
+fi
+
+rm -rf "$OLD_DIR"
+rm -f "$ZIP_PATH"
+
+# 6. Éxito
+echo "publicado $FILE_COUNT archivos"
+exit 0
