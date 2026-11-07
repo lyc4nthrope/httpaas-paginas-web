@@ -1,0 +1,12 @@
+[Unit]
+Description=HTTPaaS First Boot Auto-configuration Service
+After=vboxadd-service.service network.target
+Wants=vboxadd-service.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/httpaas-firstboot
+
+[Install]
+WantedBy=multi-user.target
