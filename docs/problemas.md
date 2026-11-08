@@ -9,6 +9,9 @@ Anota aquí cada problema cuando te pase, no al final. Sirve para la sección "P
 | 2026-11-07 | Daniel | La VM `ns` no arrancaba: *no bootable option or device* | El NVRAM de la VM estaba vacío; la entrada de arranque se pierde al crear una VM copiando el VDI en vez de usar `VBoxManage clonevm` | `grub-install --removable`, que crea `\EFI\BOOT\BOOTX64.EFI` | — |
 | 2026-11-07 | Daniel | `grub-install: command not found` en la VM base | Solo estaba instalado el GRUB que arranca, no el que reinstala el cargador | `apt install grub-efi-amd64` | — |
 | 2026-11-07 | Daniel | `apt` falla con *Temporary failure resolving* en `ns` | `enp0s8` (NAT) estaba `DOWN` y `resolv.conf` traía los DNS del ISP heredados del clon | `/etc/network/interfaces` con `enp0s3` estática sin gateway y `enp0s8` por DHCP | B-01 |
+| 2026-11-08 | Daniel | `named-checkconf` rechaza la config: `unknown option 'update-privacy'` | El archivo se transcribió a mano y `update-policy` quedó como `update-privacy` | Corregir la opción y validar de nuevo antes de reiniciar | B-03 |
+| 2026-11-08 | Daniel | `dig ns.cloud.local` devuelve `192.168.10.0` en vez de `192.168.10.10` | El registro `A` se escribió con la dirección de red | Corregir la IP y subir el serial de la zona | B-04 |
+| 2026-11-08 | Daniel | `rndc reload cloud.local` falla con *dynamic zone* y el cambio no se aplica | Una zona con `update-policy local` es dinámica: BIND no la recarga desde archivo porque descartaría el journal | `systemctl restart named` al no haber journal; la vía manual es `rndc freeze` → editar → `rndc thaw` | — |
 
 ## Mejoras y trabajo futuro
 

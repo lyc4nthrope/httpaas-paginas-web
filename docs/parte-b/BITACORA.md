@@ -90,7 +90,102 @@ Detalle completo en [`docs/problemas.md`](../problemas.md).
 
 ---
 
-## B2. Zona `cloud.local` estática — ⬜ pendiente
+## B2. Zona `cloud.local` estática — ✅ 2026-11-08
+
+`ns` pasa a ser autoritativo de `cloud.local` y de su zona inversa. Los cuatro
+archivos viven versionados en [`deploy/ns/`](../../deploy/ns/) y se copian a la VM;
+el repo es la fuente de verdad, no la VM.
+
+### Archivos
+
+| Archivo en el repo | Destino en `ns` | Qué hace |
+|---|---|---|
+| `named.conf.options` | `/etc/bind/named.conf.options` | Escucha en `127.0.0.1` y `192.168.10.10`, atiende solo la red del proyecto, recursión con reenvío a `1.1.1.1`/`8.8.8.8` |
+| `named.conf.local` | `/etc/bind/named.conf.local` | Declara las dos zonas como `type primary` con `update-policy local` |
+| `db.cloud.local` | `/var/lib/bind/db.cloud.local` | Zona directa: `ns A 192.168.10.10` |
+| `db.192.168.10` | `/var/lib/bind/db.192.168.10` | Zona inversa: `10 PTR ns.cloud.local.` |
+
+### Lo que se hizo
+
+1. Escribir los cuatro archivos en `deploy/ns/`.
+2. Copiarlos a `ns` con `scp` como `httpaas` (a `/tmp`).
+3. Instalarlos con `install` fijando dueño y modo: `root:bind` en `/etc/bind`,
+   `bind:bind` en `/var/lib/bind`.
+4. Validar con `named-checkconf` y `named-checkzone` **antes** de reiniciar.
+5. `systemctl restart named` y verificar con `dig` y `Resolve-DnsName`.
+
+### Verificación (salida real)
+
+Dentro de `ns`:
+
+```text
+$ dig @127.0.0.1 ns.cloud.local +short
+192.168.10.10
+
+$ dig @127.0.0.1 SOA cloud.local +short
+ns.cloud.local. admin.cloud.local. 2026110702 3600 900 604800 300
+
+$ dig @127.0.0.1 -x 192.168.10.10 +short
+ns.cloud.local.
+
+$ dig @127.0.0.1 debian.org +short
+151.101.2.132
+151.101.194.132
+```
+
+Desde el host (Windows no trae `dig`):
+
+```powershell
+Resolve-DnsName -Name ns.cloud.local -Server 192.168.10.10
+# ns.cloud.local  A  192.168.10.10
+
+Resolve-DnsName -Name 192.168.10.10 -Server 192.168.10.10 -Type PTR
+# 10.10.168.192.in-addr.arpa  PTR  ns.cloud.local
+
+Resolve-DnsName -Name debian.org -Server 192.168.10.10
+# debian.org  A  151.101.2.132      <- la recursión funciona
+```
+
+Las tres pruebas son distintas y cubren cosas distintas: la primera prueba la zona
+directa, la segunda la inversa (opcional en el plan) y la tercera la recursión. Si
+la tercera fallara sola, el problema estaría en la salida a internet de `ns`
+(`enp0s8`), no en las zonas.
+
+📸 `B-03` — `named-checkconf` + `named-checkzone`. 📸 `B-04` — las tres consultas.
+
+### Decisiones
+
+- **Los archivos de zona van en `/var/lib/bind/`, no en `/etc/bind/`.** `named`
+  corre como usuario `bind` y necesita escribir el *journal* de las actualizaciones
+  dinámicas. `/etc/bind` es de `root` y no es escribible por ese usuario (D6).
+- **`update-policy local` en vez de una llave TSIG repartida a mano.** BIND genera
+  una llave de sesión en `/run/named/session.key`; `nsupdate -l` la usa. Es lo que
+  permite que B3 actualice sin gestionar secretos.
+- **`forwarders` + `recursion`:** las instancias necesitan resolver `deb.debian.org`
+  para `apt` a través de `ns`. Sin recursión, cada instancia tendría que apuntar a
+  un DNS externo.
+- **Serial `YYYYMMDDnn`.** Hoy `2026110702` en la zona directa y `2026110701` en la
+  inversa. Cada zona tiene el suyo; no tienen que coincidir. En B3 no se toca a
+  mano: `nsupdate` lo incrementa solo.
+- **`/var/lib/bind` quedó `root:bind` con `drwxrwxr-x`**, así que `bind` puede crear
+  el journal. Los `db.*` son `bind:bind` para que un volcado del journal no cambie
+  de dueño.
+
+### Problemas encontrados
+
+Detalle completo en [`docs/problemas.md`](../problemas.md).
+
+| Síntoma | Causa | Solución |
+|---|---|---|
+| `named-checkconf`: `unknown option 'update-privacy'` | El archivo se escribió a mano y `policy` quedó como `privacy` | Corregir a `update-policy` y volver a validar |
+| `dig ns.cloud.local` devolvía `192.168.10.0` | El registro `A` se escribió con la dirección de red en vez de la del servidor | Corregir a `192.168.10.10` y subir el serial |
+| `rndc reload cloud.local` falla con *dynamic zone* | BIND no recarga desde archivo una zona dinámica: descartaría el journal | `systemctl restart named` (no había journal, no se perdió nada) |
+
+La lección del tercer punto es la que importa para B3: con zonas dinámicas el
+archivo en disco y la memoria del demonio son **dos estados distintos**. Editar el
+archivo no cambia lo que responde `named`. La vía manual correcta es
+`rndc freeze` → editar → `rndc thaw`; la vía normal, y la que usará el producto, es
+`nsupdate -l` contra el demonio vivo.
 
 ## B3. Actualización dinámica con `httpaas-dns` — ⬜ pendiente
 

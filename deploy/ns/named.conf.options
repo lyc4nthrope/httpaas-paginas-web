@@ -1,0 +1,16 @@
+// Global options for the platform DNS (docs/parte-b/PLAN.md, B2).
+options {
+	directory "/var/cache/bind";
+
+	// Answer only on loopback (nsupdate runs there) and on the project network.
+	listen-on { 127.0.0.1; 192.168.10.10; };
+	allow-query { localhost; 192.168.10.0/24; };
+
+	// The zones only know the platform hosts; everything else is forwarded.
+	// The instances need this for apt and the host needs it for external names.
+	recursion yes;
+	allow-recursion { localhost; 192.168.10.0/24; };
+	forwarders { 1.1.1.1; 8.8.8.8; };
+
+	dnssec-validation auto;
+};

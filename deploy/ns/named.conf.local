@@ -1,0 +1,13 @@
+// Zones owned by the platform. Both are dynamic: the webapp updates them through
+// httpaas-dns and nsupdate, never by rewriting the files while named is running.
+zone "cloud.local" {
+	type primary;
+	file "/var/lib/bind/db.cloud.local";
+	update-policy local;
+};
+
+zone "10.168.192.in-addr.arpa" {
+	type primary;
+	file "/var/lib/bind/db.192.168.10";
+	update-policy local;
+};
