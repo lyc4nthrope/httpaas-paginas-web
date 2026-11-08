@@ -92,7 +92,7 @@ Validar siempre con `sshd -t` antes de `systemctl restart ssh`.
 
 Desde el host:
 
-```powershell
+```bat
 ssh -i keys/httpaas_ed25519 httpaas@192.168.10.10 hostname   # -> ns
 ```
 

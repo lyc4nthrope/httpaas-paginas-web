@@ -6,6 +6,10 @@ El plan vive en [`PLAN.md`](PLAN.md), los problemas del proyecto se anotan en
 
 Cada fase se marca ✅ cuando su sección **Verificación** del plan pasa contra la VM real.
 
+**Shells:** los comandos del host se ejecutan en **`cmd`** (no se usa PowerShell en
+esta parte); los de la VM, en la consola Debian (bash). Por eso las consultas desde
+el host se documentan con `nslookup`, no con `Resolve-DnsName`.
+
 ---
 
 ## B0. Prerrequisitos del host — ✅ 2026-11-07
@@ -59,7 +63,7 @@ enp0s8  UP  10.0.3.15/24              <- DHCP del NAT
 
 Y desde el host, sin contraseña:
 
-```powershell
+```bat
 ssh -i keys/httpaas_ed25519 httpaas@192.168.10.10 hostname   # -> ns
 ```
 
@@ -105,6 +109,14 @@ el repo es la fuente de verdad, no la VM.
 | `db.cloud.local` | `/var/lib/bind/db.cloud.local` | Zona directa: `ns A 192.168.10.10` |
 | `db.192.168.10` | `/var/lib/bind/db.192.168.10` | Zona inversa: `10 PTR ns.cloud.local.` |
 
+### Shells usados
+
+- **Host (Windows): `cmd`.** No se está usando PowerShell en esta parte.
+- **VM `ns`: consola Debian (bash).**
+
+Por eso todas las consultas desde el host se documentan con `nslookup`, que viene
+en cualquier Windows, y no con `Resolve-DnsName`, que es de PowerShell.
+
 ### Lo que se hizo
 
 1. Escribir los cuatro archivos en `deploy/ns/`.
@@ -112,7 +124,32 @@ el repo es la fuente de verdad, no la VM.
 3. Instalarlos con `install` fijando dueño y modo: `root:bind` en `/etc/bind`,
    `bind:bind` en `/var/lib/bind`.
 4. Validar con `named-checkconf` y `named-checkzone` **antes** de reiniciar.
-5. `systemctl restart named` y verificar con `dig` y `Resolve-DnsName`.
+5. `systemctl restart named` y verificar con `dig` dentro de la VM y `nslookup`
+   desde `cmd`.
+
+### Qué hace cada comando
+
+Desde `cmd`, en el host:
+
+| Comando | Qué hace |
+|---|---|
+| `scp -i keys/httpaas_ed25519 ... httpaas@192.168.10.10:/tmp/` | Copia por SSH. `-i` indica la llave privada; el destino `usuario@ip:/ruta` escribe en `/tmp` de la VM |
+| `-o BatchMode=yes` | Si la llave falla, aborta en vez de pedir contraseña (la cuenta no tiene) |
+| `-o UserKnownHostsFile=keys/known_hosts` | Guarda/lee la huella del host en el archivo que usará la webapp, no en el perfil de Windows |
+| `nslookup <nombre> <servidor>` | Consulta DNS. El **segundo argumento** es el servidor a preguntar; sin él, Windows usa el DNS de la interfaz |
+| `nslookup <ip> <servidor>` | Si el primer argumento es una IP, `nslookup` hace una consulta **PTR** (inversa) |
+
+Dentro de la VM:
+
+| Comando | Qué hace |
+|---|---|
+| `install -o root -g bind -m 0644 origen destino` | Copia y fija dueño, grupo y permisos en un solo paso (equivale a `cp` + `chown` + `chmod`, pero sin ventana intermedia) |
+| `named-checkconf` | Valida la sintaxis de todo el árbol `named.conf*`. **No imprime nada si está bien** |
+| `named-checkzone <zona> <archivo>` | Parsea un archivo de zona, comprueba SOA/NS y reporta el serial cargado |
+| `systemctl restart named` | Detiene y arranca el servicio: relee configuración **y todos los archivos de zona** desde disco |
+| `systemctl is-active named` | Devuelve `active` o `inactive`; sirve para confirmar que no quedó caído |
+| `dig @127.0.0.1 <nombre> +short` | Consulta al servidor indicado (`@127.0.0.1` evita salir por la red) y `+short` deja solo la respuesta |
+| `dig @127.0.0.1 -x <ip> +short` | `-x` hace la consulta inversa (PTR) |
 
 ### Verificación (salida real)
 
@@ -133,23 +170,64 @@ $ dig @127.0.0.1 debian.org +short
 151.101.194.132
 ```
 
-Desde el host (Windows no trae `dig`):
+Desde el host, en **cmd**:
 
-```powershell
-Resolve-DnsName -Name ns.cloud.local -Server 192.168.10.10
-# ns.cloud.local  A  192.168.10.10
-
-Resolve-DnsName -Name 192.168.10.10 -Server 192.168.10.10 -Type PTR
-# 10.10.168.192.in-addr.arpa  PTR  ns.cloud.local
-
-Resolve-DnsName -Name debian.org -Server 192.168.10.10
-# debian.org  A  151.101.2.132      <- la recursión funciona
+```bat
+nslookup ns.cloud.local 192.168.10.10
 ```
 
-Las tres pruebas son distintas y cubren cosas distintas: la primera prueba la zona
-directa, la segunda la inversa (opcional en el plan) y la tercera la recursión. Si
-la tercera fallara sola, el problema estaría en la salida a internet de `ns`
-(`enp0s8`), no en las zonas.
+```text
+Servidor:  ns.cloud.local
+Address:  192.168.10.10
+
+Nombre:  ns.cloud.local
+Address:  192.168.10.10
+```
+
+```bat
+nslookup 192.168.10.10 192.168.10.10
+```
+
+```text
+Servidor:  ns.cloud.local
+Address:  192.168.10.10
+
+Nombre:  ns.cloud.local
+Address:  192.168.10.10
+```
+
+```bat
+nslookup debian.org 192.168.10.10
+```
+
+```text
+Respuesta no autoritativa:
+Servidor:  ns.cloud.local
+Address:  192.168.10.10
+
+Nombre:  debian.org
+Addresses:  2a04:4e42:200::644
+            2a04:4e42::644
+            2a04:4e42:600::644
+            2a04:4e42:400::644
+            151.101.194.132
+            151.101.2.132
+            151.101.66.132
+            151.101.130.132
+```
+
+Cómo leer la salida de `nslookup`:
+
+- El bloque **`Servidor` / `Address`** de arriba es **quién respondió**, no la
+  respuesta. Confirma que le preguntamos a `192.168.10.10`.
+- El bloque **`Nombre` / `Address`** de abajo es **la respuesta**.
+- **`Respuesta no autoritativa`** en `debian.org` es correcta: significa que `ns`
+  no es dueño de ese dominio y la obtuvo por recursión. Para `cloud.local` no
+  aparece porque `ns` sí es autoritativo.
+
+Las tres pruebas cubren cosas distintas: la primera la zona directa, la segunda la
+inversa (opcional en el plan) y la tercera la recursión. Si la tercera fallara sola,
+el problema estaría en la salida a internet de `ns` (`enp0s8`), no en las zonas.
 
 📸 `B-03` — `named-checkconf` + `named-checkzone`. 📸 `B-04` — las tres consultas.
 
