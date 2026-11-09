@@ -101,7 +101,7 @@ dig @192.168.10.10 prueba.cloud.local +short                              # 192.
 dig @192.168.10.10 -x 192.168.10.99 +short                                # prueba.cloud.local.
 ssh httpaas@192.168.10.10 sudo httpaas-dns agregar 'x;id' 192.168.10.99   # rechazado, código ≠ 0
 ssh httpaas@192.168.10.10 sudo httpaas-dns quitar prueba && dig @192.168.10.10 prueba.cloud.local +short   # vacío
-ssh httpaas@192.168.10.10 sudo cat /etc/shadow                            # rechazado por sudo
+ssh httpaas@192.168.10.10 sudo -n cat /etc/shadow                         # rechazado por sudo
 ```
 📸 **B-05** — agregar + `dig`. 📸 **B-06** — rechazo del nombre malicioso y de `sudo cat`. 📸 **B-07** — archivo `.jnl` en `/var/lib/bind/` (prueba de que la actualización fue dinámica).
 **Commit:** `feat(ns): add httpaas-dns for dynamic a and ptr records`

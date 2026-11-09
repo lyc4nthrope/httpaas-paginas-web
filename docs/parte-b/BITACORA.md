@@ -314,9 +314,12 @@ prueba 192.168.10.99
 $ ssh ... sudo httpaas-dns agregar 'x;id' 192.168.10.99
 httpaas-dns: invalid host: 'x;id'                               # exit 1
 
-$ ssh ... sudo cat /etc/shadow
-Sorry, user httpaas is not allowed to execute '/usr/bin/cat /etc/shadow' as root
-                                                                # exit 1
+$ ssh ... sudo -n cat /etc/shadow
+sudo: a password is required                                    # exit 1
+
+$ ssh ... sudo -n -l
+User httpaas may run the following commands on ns:
+    (root) NOPASSWD: /usr/local/sbin/httpaas-dns                # exit 0
 
 $ sudo httpaas-dns quitar prueba
 removed prueba.cloud.local                                      # exit 0
@@ -353,7 +356,10 @@ La presencia de los `.jnl` es la prueba de que la actualización fue **dinámica
   registro está", no "nsupdate no se quejó". Sin eso la webapp reportaría éxito falso.
 - **Rechazar `ns`.** Sobrescribir el registro del servidor DNS tumbaría la plataforma.
 - **Sudoers de mínimo privilegio.** `httpaas` puede ejecutar un solo binario como
-  root; `sudo cat /etc/shadow` queda denegado.
+  root. La cuenta tiene la contraseña bloqueada (`passwd -S` → `L`), así que cualquier
+  otro comando falla sin siquiera poder autenticarse: `sudo -n cat /etc/shadow` →
+  `sudo: a password is required`. La prueba positiva es `sudo -n -l`, que sin
+  contraseña lista la única regla: `(root) NOPASSWD: /usr/local/sbin/httpaas-dns`.
 - **`instalar.sh` no sobrescribe zonas existentes.** Después de B3 las zonas tienen
   registros dinámicos; pisarlas borraría las instancias. `--forzar-zonas` es la
   excepción deliberada.
