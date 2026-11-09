@@ -20,7 +20,8 @@ Reglas obligatorias:
 - La zona es dinámica: update-policy local; archivos en /var/lib/bind/; NUNCA editar la zona a mano con named
   encendido (usar rndc freeze/thaw). Siempre named-checkconf y named-checkzone antes de recargar.
 - El script httpaas-dns valida host (^[a-z][a-z0-9-]{1,30}[a-z0-9]$) e IP (192.168.10.N) antes de usarlos.
-  Los datos nunca se interpolan sin validar.
+  Rechaza además las IPs reservadas de infraestructura (.1 host, .10 DNS, .20 plantilla): sobre .10 borraría
+  el PTR `10 PTR ns.cloud.local.` de la zona inversa. Los datos nunca se interpolan sin validar.
 - En Go: implementa la interfaz puertos.DNS EXACTAMENTE como en docs/PLAN.md §4.2. Comandos remotos solo a
   través de executor.Executor con argumentos separados. Funciones puras con pruebas de tabla; Fakes para el resto.
 - El contrato de docs/PLAN.md §4 NO se cambia sin acuerdo del equipo.
@@ -75,7 +76,7 @@ Hacer P1–P4 del [plan general §7](../PLAN.md#7-preparación-de-cada-pc-los-tr
 
 ### B3. Actualización dinámica con `httpaas-dns` ⬜ (H1)
 **Meta:** registrar y quitar hosts con un solo comando, que es lo que llamará la webapp.
-1. `deploy/ns/httpaas-dns` (bash, `set -euo pipefail`). Valida el host con `^[a-z][a-z0-9-]{1,30}[a-z0-9]$` y la IP con `^192\.168\.10\.([1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-4])$`. Rechaza `ns`.
+1. `deploy/ns/httpaas-dns` (bash, `set -euo pipefail`). Valida el host con `^[a-z][a-z0-9-]{1,30}[a-z0-9]$` y la IP con `^192\.168\.10\.([1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-4])$`. Rechaza `ns` y las IPs reservadas `192.168.10.1`, `192.168.10.10` y `192.168.10.20`.
    - `agregar H IP`: una sola llamada a `nsupdate -l` con **dos bloques, uno por zona, cada uno con su propio `send`**. Un mensaje de actualización solo puede tocar una zona; si se mezclan, `nsupdate` falla con `NOTZONE`. `N` es el último octeto de la IP:
      ```
      zone cloud.local
