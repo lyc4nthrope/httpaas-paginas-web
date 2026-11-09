@@ -40,10 +40,10 @@ El servidor DNS que da nombre a cada instancia, la pieza de Go que lo actualiza,
 
 ## Fases
 
-### B0. Preparación ⬜ (H0)
+### B0. Preparación ✅ 2026-11-07 (H0)
 Hacer P1–P4 del [plan general §7](../PLAN.md#7-preparación-de-cada-pc-los-tres-h0). Revisar y aprobar el PR del contrato (A1).
 
-### B1. VM `ns` ⬜ (H1)
+### B1. VM `ns` ✅ 2026-11-07 (H1)
 **Meta:** una VM Debian 13 sin interfaz gráfica, con IP fija 192.168.10.10 y acceso por SSH con llaves.
 1. VM `ns`: 1 CPU, 512 MB, disco de 8 GB, BIOS. `nic1` host-only `vboxnet0`, `nic2` NAT. Instalar Debian 13 sin entorno gráfico, con "SSH server" y "standard system utilities".
 2. Comprobar el nombre de las interfaces con `ip -br link`: normalmente `enp0s3` es host-only y `enp0s8` es NAT.
@@ -58,7 +58,7 @@ Hacer P1–P4 del [plan general §7](../PLAN.md#7-preparación-de-cada-pc-los-tr
 📸 **B-01** — `ip -br addr` en `ns`. 📸 **B-02** — SSH desde el host sin contraseña.
 **Commit:** `docs(ns): record base vm setup` (con los pasos en `deploy/ns/README.md`)
 
-### B2. Zona `cloud.local` estática ⬜ (H1)
+### B2. Zona `cloud.local` estática ✅ 2026-11-08 (H1)
 > **Alcance:** el enunciado y la figura solo piden registros **A** en `cloud.local`. La zona **inversa** (PTR) es un extra: cuesta poco y permite `dig -x`. Si da problemas, se quita sin afectar el parcial.
 **Meta:** que Bind9 responda por la zona y por la inversa.
 1. `deploy/ns/named.conf.options`: `listen-on { 127.0.0.1; 192.168.10.10; };`, `allow-query { localhost; 192.168.10.0/24; };`, `recursion yes;`, `allow-recursion { localhost; 192.168.10.0/24; };`, `forwarders { 1.1.1.1; 8.8.8.8; };`, `dnssec-validation auto;`.
@@ -74,7 +74,7 @@ Hacer P1–P4 del [plan general §7](../PLAN.md#7-preparación-de-cada-pc-los-tr
 📸 **B-03** — `named-checkconf` y `named-checkzone` sin errores. 📸 **B-04** — los tres `dig`.
 **Commit:** `feat(ns): serve cloud.local and its reverse zone`
 
-### B3. Actualización dinámica con `httpaas-dns` ⬜ (H1)
+### B3. Actualización dinámica con `httpaas-dns` ✅ 2026-11-09 (H1)
 **Meta:** registrar y quitar hosts con un solo comando, que es lo que llamará la webapp.
 1. `deploy/ns/httpaas-dns` (bash, `set -euo pipefail`). Valida el host con `^[a-z][a-z0-9-]{1,30}[a-z0-9]$` y la IP con `^192\.168\.10\.([1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-4])$`. Rechaza `ns` y las IPs reservadas `192.168.10.1`, `192.168.10.10` y `192.168.10.20`.
    - `agregar H IP`: una sola llamada a `nsupdate -l` con **dos bloques, uno por zona, cada uno con su propio `send`**. Un mensaje de actualización solo puede tocar una zona; si se mezclan, `nsupdate` falla con `NOTZONE`. `N` es el último octeto de la IP:
