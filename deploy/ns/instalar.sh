@@ -64,6 +64,20 @@ sync_file() {
 	return 0
 }
 
+# --- B1.3 resolver for the VM itself -----------------------------------------
+# The DHCP lease may hand out a resolver the VM cannot reach, which breaks apt
+# and every `dig` without @server. Ask the VM's own named first (it forwards
+# upstream) and the VirtualBox NAT resolver second, which is reachable even
+# before bind9 is installed. `prepend` adds; it does not drop the lease servers.
+dns_line='prepend domain-name-servers 127.0.0.1, 10.0.3.3;'
+if ! grep -qxF "$dns_line" /etc/dhcp/dhclient.conf; then
+	say "configuring dhclient resolver list"
+	sed -i '/^[[:space:]]*prepend[[:space:]]\+domain-name-servers/d' /etc/dhcp/dhclient.conf
+	printf '%s\n' "$dns_line" >>/etc/dhcp/dhclient.conf
+	dhclient -r enp0s8 2>/dev/null || true
+	dhclient enp0s8
+fi
+
 # --- B1.5 packages -----------------------------------------------------------
 if ! dpkg -s bind9 bind9-dnsutils sudo >/dev/null 2>&1; then
 	say "installing packages"

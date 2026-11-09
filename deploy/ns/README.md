@@ -43,6 +43,34 @@ iface enp0s8 inet dhcp
 `enp0s8` (NAT). Si se pone un gateway en la red host-only, todo el tráfico a
 internet muere porque esa red no tiene router.
 
+### Resolución de nombres de la propia VM — `/etc/dhcp/dhclient.conf`
+
+El DHCP de `enp0s8` entrega el DNS del host, que **la VM puede no alcanzar**
+(pasó con `192.168.1.1`: `100% packet loss`). Sin un resolver válido, `apt` falla
+con *Temporary failure resolving* y `dig` sin `@servidor` no responde.
+
+Se antepone el propio `named` y, de respaldo, el DNS del NAT de VirtualBox:
+
+```text
+prepend domain-name-servers 127.0.0.1, 10.0.3.3;
+```
+
+```bash
+sudo dhclient -r enp0s8 && sudo dhclient enp0s8
+```
+
+Por qué así:
+
+| Servidor | Rol |
+|---|---|
+| `127.0.0.1` | `named` del proyecto: responde `cloud.local` y reenvía lo externo a `1.1.1.1`/`8.8.8.8` |
+| `10.0.3.3` | DNS del NAT: alcanzable aunque `bind9` no esté instalado o `named` esté caído |
+| los del lease | Último recurso; `prepend` **antepone**, no reemplaza |
+
+Esto reproduce el modelo de una red real: las instancias apuntan a `ns`
+(`192.168.10.10`), `ns` resuelve su zona y reenvía el resto. El NAT solo da
+salida a internet, no participa en el DNS.
+
 ### Hostname — `/etc/hostname` y `/etc/hosts`
 
 ```bash

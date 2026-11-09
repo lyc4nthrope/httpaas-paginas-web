@@ -1,0 +1,4 @@
+# Least privilege: the httpaas user may run exactly one command as root, with no
+# password. Everything else (reading /etc/shadow, a shell, package installs) stays
+# denied. Installed as /etc/sudoers.d/httpaas only after `visudo -cf` accepts it.
+httpaas ALL=(root) NOPASSWD: /usr/local/sbin/httpaas-dns

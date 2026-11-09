@@ -81,6 +81,11 @@ ssh -i keys/httpaas_ed25519 httpaas@192.168.10.10 hostname   # -> ns
   en `authorized_keys` deja la VM solo accesible por consola.
 - **La instantánea se toma con la VM apagada.** Una instantánea con RAM guardada es
   más frágil como imagen base.
+- **La VM se resuelve a sí misma.** El DHCP de `enp0s8` entregó un DNS que la VM no
+  alcanzaba (`192.168.1.1`, 100 % de pérdida), y con eso `apt` y `dig` sin `@servidor`
+  fallaban. Se antepuso `127.0.0.1` (el propio `named`) y `10.0.3.3` (DNS del NAT)
+  en `/etc/dhcp/dhclient.conf`. Se corrigió en B3, pero es un paso de B1 que ahora
+  aplica `instalar.sh` antes de instalar paquetes.
 
 ### Problemas encontrados
 
@@ -265,7 +270,103 @@ archivo no cambia lo que responde `named`. La vía manual correcta es
 `rndc freeze` → editar → `rndc thaw`; la vía normal, y la que usará el producto, es
 `nsupdate -l` contra el demonio vivo.
 
-## B3. Actualización dinámica con `httpaas-dns` — ⬜ pendiente
+## B3. Actualización dinámica con `httpaas-dns` — ✅ 2026-11-09
+
+`ns` deja de editarse a mano: un script recibe altas y bajas y las aplica contra el
+demonio vivo con `nsupdate -l`. Es exactamente lo que la webapp llamará por SSH en B6.
+
+### Archivos
+
+| Archivo en el repo | Destino en `ns` | Dueño / modo | Qué hace |
+|---|---|---|---|
+| `httpaas-dns` | `/usr/local/sbin/httpaas-dns` | `root:root 755` | `agregar`, `quitar`, `listar` |
+| `sudoers` | `/etc/sudoers.d/httpaas` | `root:root 440` | `NOPASSWD` **solo** para ese script |
+| `instalar.sh` | (se ejecuta) | — | Converge B1.3–B3.2; idempotente |
+
+### Lo que se hizo
+
+1. Escribir `httpaas-dns` con `set -euo pipefail` y tres subcomandos.
+2. Validar host (`^[a-z][a-z0-9-]{1,30}[a-z0-9]$`) e IP (`192.168.10.1–254`) antes de
+   ejecutar nada; rechazar `ns`.
+3. `agregar`: dos bloques de `nsupdate` (uno por zona, cada uno con su `send`) y
+   confirmación con `dig`.
+4. `quitar`: leer la IP actual, borrar el `A` y el `PTR`; no falla si no existía.
+5. `listar`: `AXFR` filtrado a `host ip` (requiere `allow-transfer { localhost; };`).
+6. `sudoers` validado con `visudo -cf` antes de instalarse.
+7. `instalar.sh` aplica todo, incluida la resolución de nombres de B1.3.
+
+### Verificación (salida real)
+
+```text
+$ ssh ... sudo httpaas-dns agregar prueba 192.168.10.99
+added prueba.cloud.local -> 192.168.10.99                       # exit 0
+
+$ dig @192.168.10.10 prueba.cloud.local +short
+192.168.10.99
+
+$ dig @192.168.10.10 -x 192.168.10.99 +short
+prueba.cloud.local.
+
+$ sudo httpaas-dns listar
+ns 192.168.10.10
+prueba 192.168.10.99
+
+$ ssh ... sudo httpaas-dns agregar 'x;id' 192.168.10.99
+httpaas-dns: invalid host: 'x;id'                               # exit 1
+
+$ ssh ... sudo cat /etc/shadow
+Sorry, user httpaas is not allowed to execute '/usr/bin/cat /etc/shadow' as root
+                                                                # exit 1
+
+$ sudo httpaas-dns quitar prueba
+removed prueba.cloud.local                                      # exit 0
+
+$ dig @192.168.10.10 prueba.cloud.local +short
+                                                                # vacío
+
+$ sudo httpaas-dns quitar prueba
+not found: prueba.cloud.local                                   # exit 0, idempotente
+
+$ ls -l /var/lib/bind/
+-rw-r--r-- 1 bind bind db.192.168.10
+-rw-r--r-- 1 bind bind db.192.168.10.jnl
+-rw-r--r-- 1 bind bind db.cloud.local
+-rw-r--r-- 1 bind bind db.cloud.local.jnl
+```
+
+La presencia de los `.jnl` es la prueba de que la actualización fue **dinámica**
+(RFC 2136), no una reescritura del archivo.
+
+📸 `B-05` — alta + `dig`. 📸 `B-06` — rechazo del nombre malicioso y de `sudo cat`.
+📸 `B-07` — los archivos `.jnl`.
+
+### Decisiones
+
+- **`nsupdate -l` en vez de una llave TSIG repartida.** `-l` usa la llave de sesión
+  que `named` genera en `/run/named/session.key`, la contraparte de
+  `update-policy local`. No hay secreto que distribuir.
+- **Dos bloques con dos `send`.** Un mensaje DNS UPDATE pertenece a una sola zona;
+  mezclar el `A` (`cloud.local`) y el `PTR` (`10.168.192.in-addr.arpa`) falla con
+  `NOTZONE`.
+- **`update delete` antes de `update add`.** Reagregar un host existente no falla.
+- **Confirmar con `dig` dentro del script.** El código de salida significa "el
+  registro está", no "nsupdate no se quejó". Sin eso la webapp reportaría éxito falso.
+- **Rechazar `ns`.** Sobrescribir el registro del servidor DNS tumbaría la plataforma.
+- **Sudoers de mínimo privilegio.** `httpaas` puede ejecutar un solo binario como
+  root; `sudo cat /etc/shadow` queda denegado.
+- **`instalar.sh` no sobrescribe zonas existentes.** Después de B3 las zonas tienen
+  registros dinámicos; pisarlas borraría las instancias. `--forzar-zonas` es la
+  excepción deliberada.
+
+### Problemas encontrados
+
+Detalle completo en [`docs/problemas.md`](../problemas.md).
+
+| Síntoma | Causa | Solución |
+|---|---|---|
+| `listar` devolvía `prueba.cloud.local.` en vez de `prueba` | El `sed` anclaba `$` al final de la línea, que termina en la IP, no en el sufijo | Separar el campo con `awk` y quitar el sufijo ahí |
+| `agregar ns` decía *invalid host* en vez de *reserved* | El regex de longitud (mínimo 3) rechazaba `ns` antes de llegar al chequeo de reservado | Mover el chequeo de `ns` antes del regex |
+| `apt` y `dig` sin `@servidor` fallaban | El DHCP entregó un DNS inalcanzable | `prepend` de `127.0.0.1, 10.0.3.3` en `dhclient.conf` (ver B1) |
 
 ## B4. Imagen `ns.ova` — ⬜ pendiente
 

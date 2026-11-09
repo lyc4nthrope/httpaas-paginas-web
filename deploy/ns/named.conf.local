@@ -4,6 +4,8 @@ zone "cloud.local" {
 	type primary;
 	file "/var/lib/bind/db.cloud.local";
 	update-policy local;
+	// `httpaas-dns listar` needs AXFR to enumerate the zone; only the VM itself.
+	allow-transfer { localhost; };
 };
 
 zone "10.168.192.in-addr.arpa" {

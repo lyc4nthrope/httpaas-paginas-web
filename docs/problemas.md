@@ -12,6 +12,7 @@ Anota aquí cada problema cuando te pase, no al final. Sirve para la sección "P
 | 2026-11-08 | Daniel | `named-checkconf` rechaza la config: `unknown option 'update-privacy'` | El archivo se transcribió a mano y `update-policy` quedó como `update-privacy` | Corregir la opción y validar de nuevo antes de reiniciar | B-03 |
 | 2026-11-08 | Daniel | `dig ns.cloud.local` devuelve `192.168.10.0` en vez de `192.168.10.10` | El registro `A` se escribió con la dirección de red | Corregir la IP y subir el serial de la zona | B-04 |
 | 2026-11-08 | Daniel | `rndc reload cloud.local` falla con *dynamic zone* y el cambio no se aplica | Una zona con `update-policy local` es dinámica: BIND no la recarga desde archivo porque descartaría el journal | `systemctl restart named` al no haber journal; la vía manual es `rndc freeze` → editar → `rndc thaw` | — |
+| 2026-11-09 | Daniel | `apt` y `dig` sin `@servidor` fallan en `ns`: *no servers could be reached* | El DHCP de `enp0s8` entregó el DNS del host (`192.168.1.1`), que la VM no alcanza | `prepend domain-name-servers 127.0.0.1, 10.0.3.3;` en `/etc/dhcp/dhclient.conf` y renovar el lease | B-04 |
 
 ## Mejoras y trabajo futuro
 
