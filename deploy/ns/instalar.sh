@@ -42,8 +42,12 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
+# Root is required to write under /etc and to install files owned by bind.
+# The check is on the effective UID, not on the account name: `sudo bash
+# instalar.sh` passes because sudo switches the EUID to 0, and running it as a
+# plain user fails here instead of half-applying changes and stopping later.
 [[ "$(id -u)" -eq 0 ]] || {
-	echo "instalar.sh must run with root privileges (EUID 0)" >&2
+	echo "instalar.sh must run with root privileges (EUID 0): use 'sudo bash instalar.sh'" >&2
 	exit 1
 }
 
