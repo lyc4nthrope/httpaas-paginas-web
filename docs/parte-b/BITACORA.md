@@ -287,7 +287,7 @@ demonio vivo con `nsupdate -l`. Es exactamente lo que la webapp llamará por SSH
 
 1. Escribir `httpaas-dns` con `set -euo pipefail` y tres subcomandos.
 2. Validar host (`^[a-z][a-z0-9-]{1,30}[a-z0-9]$`) e IP (`192.168.10.1–254`) antes de
-   ejecutar nada; rechazar `ns`.
+   ejecutar nada; rechazar `ns` y las IPs reservadas `.1`, `.10` y `.20`.
 3. `agregar`: dos bloques de `nsupdate` (uno por zona, cada uno con su `send`) y
    confirmación con `dig`.
 4. `quitar`: leer la IP actual, borrar el `A` y el `PTR`; no falla si no existía.
@@ -313,6 +313,9 @@ prueba 192.168.10.99
 
 $ ssh ... sudo httpaas-dns agregar 'x;id' 192.168.10.99
 httpaas-dns: invalid host: 'x;id'                               # exit 1
+
+$ ssh ... sudo httpaas-dns agregar otra 192.168.10.10
+httpaas-dns: ip '192.168.10.10' is reserved for the infrastructure  # exit 1
 
 $ ssh ... sudo -n cat /etc/shadow
 sudo: a password is required                                    # exit 1
@@ -355,6 +358,10 @@ La presencia de los `.jnl` es la prueba de que la actualización fue **dinámica
 - **Confirmar con `dig` dentro del script.** El código de salida significa "el
   registro está", no "nsupdate no se quejó". Sin eso la webapp reportaría éxito falso.
 - **Rechazar `ns`.** Sobrescribir el registro del servidor DNS tumbaría la plataforma.
+- **Rechazar también las IPs de infraestructura `.1`, `.10` y `.20`.** Escribir `.10`
+  borraría el `PTR` `10 PTR ns.cloud.local.` de la zona inversa, y la confirmación con
+  `dig` seguiría pasando porque el `A` sí queda: sería una falla silenciosa. El
+  contrato está fijado en `internal/dns/httpaas_dns_test.go`.
 - **Sudoers de mínimo privilegio.** `httpaas` puede ejecutar un solo binario como
   root. La cuenta tiene la contraseña bloqueada (`passwd -S` → `L`), así que cualquier
   otro comando falla sin siquiera poder autenticarse: `sudo -n cat /etc/shadow` →
@@ -374,7 +381,63 @@ Detalle completo en [`docs/problemas.md`](../problemas.md).
 | `agregar ns` decía *invalid host* en vez de *reserved* | El regex de longitud (mínimo 3) rechazaba `ns` antes de llegar al chequeo de reservado | Mover el chequeo de `ns` antes del regex |
 | `apt` y `dig` sin `@servidor` fallaban | El DHCP entregó un DNS inalcanzable | `prepend` de `127.0.0.1, 10.0.3.3` en `dhclient.conf` (ver B1) |
 
-## B4. Imagen `ns.ova` — ⬜ pendiente
+## B4. Imagen `ns.ova` — ⬜ exportada 2026-11-09, falta la verificación de A o C
+
+`ns` deja de vivir en un solo PC: se exporta como un archivo único que A y C
+importan con un comando, sin repetir B1–B3 a mano.
+
+### Lo que se hizo
+
+1. Apagar la VM. `VBoxManage export` exige `poweroff`: no acepta una máquina
+   encendida ni en estado guardado.
+2. `VBoxManage export ns -o ns.ova`.
+3. Validar el resultado **sin importarlo**: `VBoxManage import ns.ova --dry-run`.
+4. Comprobar que git lo ignora (`.gitignore` → `*.ova`).
+5. Mover el archivo fuera del repositorio y subirlo a la carpeta compartida.
+
+### Verificación
+
+```text
+$ VBoxManage import ns.ova --dry-run
+Interpreting ns.ova...
+OK.
+  vmdisk1  18874368000  ...  streamOptimized  ns-disk001.vmdk
+  Suggested OS type: "Debian13_64"
+  Number of CPUs: 2
+  Guest memory: 1024 MB
+  Network adapter: orig HostOnly, config 3, extra slot=0
+  Network adapter: orig NAT, config 3, extra slot=1
+```
+
+| Comprobación | Resultado |
+|---|---|
+| Archivo | `ns.ova`, 1.14 GB |
+| Disco virtual | 18 GB, `streamOptimized` (solo se empaqueta lo escrito) |
+| Tipo de SO | `Debian13_64` |
+| Recursos | 2 vCPU, 1024 MB |
+| Redes | HostOnly + NAT |
+| Ignorado por git | `.gitignore:14:*.ova` |
+
+**Pendiente:** A o C importan el OVA y confirman B3 desde su PC. Esa es la
+verificación de la fase según el plan; hasta entonces B4 no está cerrada.
+
+### Decisiones
+
+- **`.ova` y no `.ovf`.** Un solo archivo se copia por Drive o USB sin perder
+  piezas; `.ovf` deja el descriptor y los discos sueltos.
+- **Fuera del repositorio.** `*.ova` está en `.gitignore` y el archivo pesa
+  1.14 GB. Además un `git clean -xdf` lo borraría sin preguntar.
+- **`--dry-run` antes de compartir.** Lee el descriptor y no crea ninguna VM:
+  detecta un OVA corrupto antes de subirlo.
+- **`--vmname ns` al importar.** Sin eso, si en la máquina ya existe una VM `ns`,
+  VirtualBox sugiere `ns 1`.
+- **El OVA no lleva la instantánea `ns-base`.** Exporta el estado actual, no el
+  historial de snapshots.
+
+### Problemas encontrados
+
+Ninguno. El export se ejecutó desde la raíz del repositorio y el archivo quedó
+ahí; git lo ignora, pero hay que sacarlo antes de cualquier `git clean -xdf`.
 
 ## B5. Resolución de `*.cloud.local` en el host — ⬜ pendiente
 
