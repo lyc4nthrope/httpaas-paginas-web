@@ -253,6 +253,20 @@
     .detalle { display: block; margin-top: 4px; font-size: .82rem; color: var(--peligro); }
     .acciones form { margin: 0; }
 
+    .dialogo {
+      width: min(420px, calc(100vw - 32px));
+      padding: 22px;
+      color: var(--tinta);
+      background: var(--superficie);
+      border: 0;
+      border-radius: var(--radio);
+      box-shadow: 0 24px 64px -24px rgba(16, 24, 40, .45);
+    }
+    .dialogo::backdrop { background: rgba(16, 24, 40, .45); }
+    .dialogo h2 { margin: 0 0 8px; font-size: 1.1rem; }
+    .dialogo p { margin: 0 0 20px; color: var(--tenue); }
+    .dialogo-acciones { display: flex; gap: 10px; justify-content: flex-end; }
+
     .vacio {
       display: grid;
       justify-items: center;
@@ -388,7 +402,9 @@
               </td>
               <td class="acciones">
                 {{if .Eliminable}}
-                <form method="post" action="/instancias/{{.Nombre}}/eliminar" onsubmit="return confirm('¿Eliminar la instancia {{.Nombre}}?')">
+                <form class="eliminar" method="post" action="/instancias/{{.Nombre}}/eliminar"
+                      data-nombre="{{.Nombre}}"
+                      onsubmit="return confirm('¿Eliminar la instancia {{.Nombre}}?')">
                   <button type="submit" class="peligro">Eliminar</button>
                 </form>
                 {{end}}
@@ -416,16 +432,57 @@
     <footer class="pie">HTTPaaS · Parcial 3 · Computación en la Nube</footer>
   </div>
 
+  <dialog id="confirmar-eliminar" class="dialogo" aria-labelledby="confirmar-titulo">
+    <h2 id="confirmar-titulo">Eliminar instancia</h2>
+    <p id="confirmar-texto"></p>
+    <div class="dialogo-acciones">
+      <button type="button" id="confirmar-cancelar" class="secundario">Cancelar</button>
+      <button type="button" id="confirmar-aceptar" class="peligro">Eliminar</button>
+    </div>
+  </dialog>
+
   <script>
     (function () {
       var entrada = document.getElementById("archivo");
       var nombre = document.getElementById("nombre-archivo");
-      if (!entrada || !nombre) return;
-      entrada.addEventListener("change", function () {
-        nombre.textContent = entrada.files && entrada.files.length
-          ? entrada.files[0].name
-          : "Sin archivo";
+      if (entrada && nombre) {
+        entrada.addEventListener("change", function () {
+          nombre.textContent = entrada.files && entrada.files.length
+            ? entrada.files[0].name
+            : "Sin archivo";
+        });
+      }
+
+      var dialogo = document.getElementById("confirmar-eliminar");
+      if (!dialogo || typeof dialogo.showModal !== "function") return;
+
+      var texto = document.getElementById("confirmar-texto");
+      var pendiente = null;
+
+      Array.prototype.forEach.call(document.querySelectorAll("form.eliminar"), function (form) {
+        form.onsubmit = null; // the dialog replaces the native confirm
+        form.addEventListener("submit", function (evento) {
+          evento.preventDefault();
+          pendiente = form;
+          texto.textContent = "Se eliminará la instancia " + form.dataset.nombre +
+            " y su contenido publicado. Esta acción no se puede deshacer.";
+          dialogo.showModal();
+        });
       });
+
+      document.getElementById("confirmar-cancelar").addEventListener("click", function () {
+        dialogo.close();
+      });
+
+      document.getElementById("confirmar-aceptar").addEventListener("click", function () {
+        if (!pendiente) return;
+        var form = pendiente;
+        pendiente = null;
+        dialogo.close();
+        HTMLFormElement.prototype.submit.call(form);
+      });
+
+      dialogo.addEventListener("close", function () { pendiente = null; });
     })();
   </script>
 </body>

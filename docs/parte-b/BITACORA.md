@@ -642,12 +642,16 @@ instancias con su estado. Part B reescribe la plantilla provisional de A5.
    con texto.
 4. **Resto del contrato de B7:** un solo formulario `multipart/form-data` con
    Aceptar/Publicar, enlace en pestaña nueva, IP/24, nombre de la VM, fecha,
-   Eliminar con `confirm()`, estado vacío y mensajes flash.
+   Eliminar con diálogo de confirmación (`<dialog>`, con `confirm()` de respaldo),
+   estado vacío y mensajes flash.
 5. **Rediseño visual:** descripción de qué hace la página, tira de tres pasos,
    tarjetas con sombra, píldoras de estado con color y texto, tabla con hover,
    contador de instancias, foco visible y selector de archivo propio (label +
    nombre del archivo) para que el texto nativo no ensanche la página. Los
    estilos siguen inline.
+6. **Diálogo de eliminación:** `<dialog>` nativo con el nombre de la instancia y
+   los botones Cancelar/Eliminar. Si el navegador no soporta `showModal()`, queda
+   el `confirm()` del atributo `onsubmit` como respaldo.
 
 ### Verificación (modo simulado, binario real)
 
