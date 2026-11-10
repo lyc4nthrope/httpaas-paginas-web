@@ -5,8 +5,9 @@
 **Repositorio:** `github.com/lyc4nthrope/httpaas-paginas-web`
 **Fecha:** noviembre de 2026
 
-> **Estado de este documento (borrador).** La Parte B está desarrollada. Faltan las
-> secciones de A y C y el banner B-12 (bloqueado por A7). Las capturas B-09 a B-11 se
+> **Estado de este documento (borrador).** Las Partes A y B están desarrolladas. Faltan
+> la sección de C, la ejecución real de la prueba completa (necesita la plantilla de C)
+> y el banner B-12 (A7 ya existe en la rama `integracion`, PR #6). Las capturas B-09 a B-11 se
 > toman con el dashboard y se insertan en `docs/capturas/` o se enlazan desde el
 > documento donde se lleven. Los huecos están marcados con **Pendiente (A)** o
 > **Pendiente (C)**.
@@ -468,66 +469,96 @@ y NIC. Importa porque el clon debe coincidir con el disco donde se instaló.
 
 ## 5. Aplicación web de gestión (Partes A y B)
 
-> **Pendiente (A).** Esta sección la completa Cristhian con A1–A7: contrato, config,
-> executor, almacén, servicio con cola, rutas y adaptador `vbox`. Para cada fase:
-> qué se hizo, problemas y decisiones, y las capturas A-01 a A-10.
+La Parte A construye el "plano de control": la webapp en Go que recibe las solicitudes, el orquestador que crea, publica y elimina instancias, y los adaptadores que hablan con VirtualBox y por SSH. Está organizada en **puertos y adaptadores**: el centro (`internal/instancias`) solo conoce tres interfaces (`Hipervisor`, `DNS` y `Publicador`), y cada parte implementa una. Por eso los tres pudieron trabajar en paralelo desde el primer día, y las pruebas corren sin VMs.
 
-### A1. Contrato común
+```
+web ──► instancias (cola de un solo trabajador) ──► puertos ──► vbox (A) · dns (B) · publicar (C)
+                       │
+                       └─► almacen (data/instancias.json)
+```
 
-`internal/puertos` define `Hipervisor`, `DNS` y `Publicador`, con Fakes para trabajar
-sin VMs. Es el acuerdo que permite a A, B y C avanzar en paralelo.
+### A0. Esqueleto y CI — ✅ 2026-10-29
 
-### A2. Configuración, executor SSH y registro
+`go.mod`, `Makefile` (`build`, `run`, `simular`, `check`, `vm-test`) y un workflow de GitHub que corre `make check` en **cada** PR, sin importar hacia qué rama va. **Por qué:** en el Parcial 2 un commit que no compilaba bloqueó a todos; desde ahora nada entra a `dev` sin la CI en verde.
 
-`config.Config` valida `config.json`; `internal/executor` ejecuta comandos con
-argumentos separados y `internal/oplog` registra lo que pasa.
+### A1. Contrato común — ✅ 2026-10-29 (ajustado el 2026-11-06)
 
-### A3. Almacén y asignación de IPs
+`internal/dominio` (instancia, estados, la regla del nombre de host, `ErrorValidacion` → 422) e `internal/puertos` (las tres interfaces y sus Fakes). La regla del nombre (`^[a-z][a-z0-9-]{1,30}[a-z0-9]$`) es una etiqueta DNS válida y, además, corta de raíz la inyección de comandos: `a;rm` nunca pasa.
 
-`internal/almacen` guarda `data/instancias.json` de forma atómica, reserva la primera
-IP libre y detecta instancias `perdida`.
+**Cambios al contrato por la revisión del 2026-11-06** (anotados primero en el plan, §4.2 y §4.6):
+- Mientras una instancia está en `creando`, `publicando` o `eliminando`, el trabajador es su dueño. Así una publicación nunca deshace un borrado.
+- `Hipervisor.Eliminar` **solo borra VMs que creó el servicio**.
 
-### A4. Servicio orquestador con cola
+### A2. Configuración, executor SSH y registro — ✅ 2026-10-29
 
-`internal/instancias` valida, reserva, encola y ejecuta los flujos crear/publicar/
-eliminar de a uno. Los estados son `creando`, `lista`, `publicando`, `eliminando`,
-`error` y `perdida`.
+- **`internal/config`** valida cada campo de `config.json` y muestra **todos los errores juntos**. Rechaza los campos desconocidos (un `"dominoi"` se detecta en vez de ignorarse) y también `listen` en `0.0.0.0`, que dejaría la consola inaccesible.
+- **`internal/executor`** viene del Parcial 2, ya probado contra VMs: SSH con `BatchMode=yes` (falla en lugar de pedir contraseña), `accept-new` con un `known_hosts` propio y argumentos entre comillas seguras. Tiene una corrección de la revisión: si `ssh` no existe, o el límite de tiempo lo mata, cuenta como **fallo de conexión** y nunca como éxito. `OlvidarHost` borra la llave de una instancia eliminada, para que la próxima VM con esa IP no sea rechazada (D8).
+- **`internal/oplog`** guarda cada operación (comandos, salida, código, duración) con permisos 600.
 
-### A5. Servidor web y rutas
+### A3. Almacén y asignación de IPs — ✅ 2026-10-29
 
-`internal/web` sirve `GET /`, `POST /instancias`, `POST /contenido`,
-`POST /instancias/{nombre}/eliminar`, `GET /api/instancias` y `GET /salud`, con
-POST→303→GET, flash, 422 por campo y CSRF por `Origin`.
+`Reservar` valida el nombre, el máximo de instancias y la IP libre **en un solo paso bajo un candado**: dos clics al mismo tiempo nunca reciben la misma IP (la prueba lanza 40 reservas simultáneas). Cada cambio se guarda con un archivo temporal + `rename`, así un corte nunca deja el JSON a medias, y un archivo corrupto nunca se sobrescribe.
 
-### A6. Adaptador VirtualBox
+### A4. Servicio orquestador con cola — ✅ 2026-10-29
 
-`internal/vbox` crea la VM, conecta el disco multiconexión, escribe las guest
-properties, arranca, espera `listo` y elimina sin tocar el disco base.
+Las peticiones solo validan, reservan y encolan, y la web responde al instante. **Un solo trabajador** ejecuta los trabajos de a uno (D4), así nunca hay dos tareas tocando VirtualBox a la vez. Crear: `Crear` → esperar `listo` → `DNS.Agregar` → verificar que resuelva → `lista`. Si algo falla, la instancia queda en `error` y **Eliminar** limpia lo que se haya alcanzado a crear, intentando todos los pasos aunque uno falle. El usuario ve un mensaje claro, y el detalle técnico va al registro. Cada trabajo tiene un límite de tiempo, y al apagar la app espera a que termine el trabajo en curso.
 
-### A7. Integración en `dev`
+### A5. Servidor web y rutas — ✅ 2026-10-29
 
-Conecta los adaptadores reales en `main.go` y habilita el modo real. Es la fase que
-desbloquea B6.5/B-12 y la prueba completa.
+`GET /`, `POST /instancias` (Aceptar), `POST /contenido` (Publicar), `POST /instancias/{nombre}/eliminar`, `GET /api/instancias` y `GET /salud`, con POST → 303 → GET. **Publicar usa una ruta fija** para que un solo formulario con dos botones, como en la figura del enunciado, funcione sin JavaScript. Seguridad:
+- Solo acepta su propio `Host`, contra el DNS rebinding. Si la lista está vacía, rechaza todo.
+- `Origin` igual a la app (CSRF).
+- Cuerpo limitado (413).
+- `html/template`.
+
+El modo `-simular` permite usar toda la interfaz sin VMs.
+
+### A6. Adaptador VirtualBox — 🟡 código ✅; prueba con la plantilla real pendiente
+
+Los argumentos de `VBoxManage` los arman funciones puras, que se prueban sin VirtualBox. Si `Crear` falla a medias, borra lo creado. `EsperarLista` exige dos cosas: `/httpaas/estado = listo` **y** el puerto 22 abierto. La marca `/httpaas/hostname` se escribe justo después de `createvm`, y **`Eliminar` solo borra VMs que la tienen**: una VM ajena con el mismo nombre nunca se toca. Si VirtualBox sigue con la VM bloqueada después de apagarla, el borrado se reintenta, y solo en ese caso. Falta la prueba con el disco real de la Parte C: crear y borrar una instancia y comprobar que `ApacheServer.vdi` sobrevive.
+
+### A7. Integración — ✅ 2026-11-10
+
+`main.go` conecta en modo real:
+- `vbox`.
+- `dns` (Parte B), con un SSH hacia `ns`.
+- `publicar` (Parte C), con un SSH por IP de instancia.
+- `OlvidarHost`.
+- `publicar.ValidarZip`, también en modo simulado.
+
+El aviso de `ns` (B6.5) se revisa cada 30 s en segundo plano y llega a la plantilla como `Vista.DNSAviso`. Se quita solo cuando `ns` vuelve, sin reiniciar la app. **Verificado:**
+- Las pruebas de la Parte B contra la `ns` real pasan.
+- La app en modo real, con un disco base inválido a propósito: VirtualBox lo rechazó, la app **deshizo la VM** (no quedó ninguna), mostró un error claro, y Eliminar limpió el DNS real.
+
+### A8. Prueba completa y README — 🟡 script ✅; ejecución real pendiente de la plantilla
+
+`scripts/prueba-completa.sh` hace los 7 pasos de la sección 6. Contra `make simular` da **17 OK y 3 omitidos** (los que necesitan VMs), y si ya existe una instancia falla como debe. El `README.md` explica la preparación, la configuración, el uso y las pruebas, pensado para quien llega al repositorio sin contexto.
+
+### Cómo se verificó la Parte A
+
+- **Una prueba que falla antes de cada corrección.** Si la prueba no falla antes de corregir, no prueba el bug.
+- **Mutaciones:** se rompió a propósito cada corrección para comprobar que alguna prueba lo detecta. Resultado: **25 de 25** en la Parte A y **22 de 22** en el adaptador de publicación.
+- **Dos revisiones independientes** de la Parte A encontraron **18 problemas reales**, y quedaron corregidos con su prueba. La más grave: Eliminar podía borrar una VM ajena con el mismo nombre.
+- **CI en cada PR.** La CI encontró una carrera al apagar que en el PC no aparecía (3 fallas de 300 repeticiones; 0 de 300 después de corregirla).
+
+### Capturas de la Parte A
 
 ![A-01 — make check](capturas/A-01.png)
 
-**A-01 — `make check` en verde.** Compila, pasa `gofmt`, `go vet` y las pruebas.
-Importa porque es la puerta de calidad antes de cada commit. **Pendiente (A):**
-completar el pie y las capturas A-02 a A-10.
+| Captura | Qué se ve | Por qué importa |
+|---|---|---|
+| A-01 | `make check` en verde: `gofmt`, `go vet`, pruebas con `-race` y compilación | Es la puerta de calidad antes de cada commit |
+| A-02 | El workflow `check` en verde en un PR de GitHub | Nadie puede integrar código que no compila ni pasa las pruebas |
+| A-03 | Una línea de `logs/operaciones.jsonl` con el comando, la salida, el código y la duración | Es el "conservar información técnica para el diagnóstico" |
+| A-04 | Dashboard en modo simulado con una instancia en `creando` | La web responde al instante; el trabajo corre en la cola |
+| A-05 | Un nombre inválido (`a;rm`) rechazado con 422 junto al campo | Se valida antes de ejecutar nada |
+| A-06 | `VBoxManage list vms` con la instancia creada desde la app | La VM la creó la app, sin intervención |
+| A-07 | `VBoxManage showmediuminfo` del disco base con su hijo diferencial | El clon usa el disco multiconexión |
+| A-08 | Después de Eliminar: la VM ya no está y `ApacheServer.vdi` sí | Eliminar no toca el disco base |
+| A-09 | El formulario con `paisajes` y `paisajes.zip` | El flujo de la figura del enunciado |
+| A-10 | Dashboard con la instancia `lista` y su enlace | El resultado que ve el usuario |
 
-| Captura | Qué debe mostrar |
-|---|---|
-| A-02 | Workflow de GitHub en verde |
-| A-03 | Línea del registro de un comando real |
-| A-04 | Dashboard simulado con una instancia en `creando` |
-| A-05 | Error 422 mostrado en el formulario |
-| A-06 | `VBoxManage list vms` con la instancia creada |
-| A-07 | `showhdinfo` del disco base con su hijo diferencial |
-| A-08 | Después de eliminar: la VM no está y el `.vdi` base sí |
-| A-09 | Formulario con `paisajes` y `paisajes.zip` |
-| A-10 | Dashboard con la instancia `lista` y su enlace |
-
-> **Pendiente (A):** completar el pie de cada una con qué se ve y por qué importa.
+A-01 a A-05 se toman con `make check`, la CI y `make simular`. A-06 a A-10 necesitan la plantilla de la Parte C.
 
 ### B7. Dashboard — ✅ 2026-11-09
 
@@ -604,32 +635,26 @@ fallo de infraestructura en una acción concreta para el usuario.
 
 ## 6. Prueba de punta a punta (H4)
 
-`scripts/prueba-completa.sh` (de A) hace, con la webapp corriendo:
+`scripts/prueba-completa.sh` (Parte A) usa las mismas rutas que el navegador y verifica cada efecto **donde ocurre**:
 
-1. Crear `paisajes` y `negocios`; esperar que ambas queden `lista`.
-2. `dig @192.168.10.10 +short paisajes.cloud.local` → `192.168.10.30`.
-3. Publicar `testdata/zips/paisajes.zip` y `negocios.zip`.
-4. `curl -s http://paisajes.cloud.local/` y comprobar el contenido; lo mismo con
-   `negocios`.
-5. Crear `paisajes` otra vez → 422; subir `zipslip.zip` → 422.
-6. Eliminar `paisajes`: la VM no está en `VBoxManage list vms`, `dig` no devuelve nada
-   y `ApacheServer.vdi` sigue existiendo.
+1. Crear `paisajes` y `negocios`, y esperar a que las dos queden `lista`.
+2. **DNS dentro de `ns`** (por SSH, así funciona igual en Windows): cada nombre resuelve a la IP que le dio la app.
+3. Publicar `testdata/zips/paisajes.zip` y `negocios.zip`, y esperar a que vuelvan a `lista` sin error.
+4. Apache sirve **exactamente** el `index.html` de cada zip: se comparan los `md5` del archivo del zip y de la página servida con `Host: <nombre>.cloud.local`.
+5. Rechazos: nombre repetido (422), `zipslip.zip` (422), `symlink.zip` (422), nombre malicioso (422) y otro `Origin` (403).
+6. Eliminar `paisajes`: la VM no está en `VBoxManage list vms`, el nombre ya no resuelve y `ApacheServer.vdi` sigue existiendo.
 7. Eliminar `negocios`.
 
-Imprime `OK`/`FALLA` por paso y termina con código distinto de 0 si algo falla.
-**Pendiente (A + C):** ejecutarlo contra las VMs reales cuando A7 y C7 estén cerrados,
-y adjuntar el resultado.
+Imprime `OK`, `FALLA` u `omitido` por paso y termina con código distinto de 0 si algo falla. Con `SIMULADO=1` corre contra `make simular` y omite lo que necesita VMs (2026-11-10: **17 OK, 0 FALLA, 3 omitidos**). **Pendiente (A + C):** la ejecución real, con la plantilla de la Parte C, y su resultado adjunto (A-16).
 
-| Captura | Qué debe mostrar |
-|---|---|
-| A-11 | Dos instancias en el dashboard |
-| A-12 | `dig` de las dos |
-| A-13 | La página de `paisajes` abierta desde su enlace |
-| A-14 | La página de `negocios` abierta desde su enlace |
-| A-15 | Rechazo de `zipslip.zip` |
-| A-16 | Resultado del script de prueba completa |
-
-> **Pendiente (A):** completar el pie de cada una y adjuntar el resultado real.
+| Captura | Qué se ve | Por qué importa |
+|---|---|---|
+| A-11 | Dos instancias (`paisajes` y `negocios`) `lista` en el dashboard | Varias instancias a la vez, cada una con su IP |
+| A-12 | La resolución de los dos nombres en `ns` | El registro DNS fue automático |
+| A-13 | La página de `paisajes`, abierta desde su enlace en una pestaña nueva | El sitio del zip, publicado y servido por su nombre |
+| A-14 | La página de `negocios` (el zip trae una carpeta) | La regla de la carpeta única funciona de punta a punta |
+| A-15 | El rechazo de `zipslip.zip` en el formulario | La validación protege antes de tocar la VM |
+| A-16 | La salida de `scripts/prueba-completa.sh` con todos los pasos `OK` | La prueba completa del enunciado, de una sola vez |
 
 ---
 
@@ -652,7 +677,20 @@ resumidos:
 | 2026-11-09 | El adaptador reportaba éxito con `exit != 0` | El executor solo marca fallos de transporte | Revisar `res.ExitCode` |
 | 2026-11-09 | El formulario no se alineaba y el móvil desbordaba | `max-width` y el `input[type=file]` nativo | Panel a ancho completo y selector propio |
 
-> **Pendiente (A y C):** agregar sus problemas reales y mantener el detalle en
+Los de la Parte A:
+
+| Fecha | Problema | Causa | Solución |
+|---|---|---|---|
+| 2026-10-29 | VirtualBox no deja crear la red `192.168.10.0/24` | En Linux solo permite `192.168.56.0/21` sin `/etc/vbox/networks.conf` | Paso P1 del plan |
+| 2026-11-06 | Eliminar podía borrar una VM ajena con el mismo nombre | Se confiaba en el nombre de la VM | Nombre revisado antes de reservar y marca `/httpaas/hostname`: solo se borran VMs con esa marca |
+| 2026-11-06 | Un fallo de SSH podía contarse como éxito | Si `ssh` no existía o el límite de tiempo lo mataba, el código quedaba en 0 o -1 | Esos casos son fallos de conexión; solo un código real es del comando remoto |
+| 2026-11-06 | La CI falló con `TempDir RemoveAll: directory not empty` | Al cancelar, el trabajador podía seguir escribiendo el JSON | `Iniciar` devuelve una señal de "terminé" y la app la espera al apagar (3 de 300 → 0 de 300) |
+| 2026-11-09 | `ns.ova` arrancaba sin la red del proyecto en otro PC | El `.ova` guarda el nombre de la red host-only del PC donde se exportó (Windows) | `scripts/importar-ns.sh` la conecta a la red de cada PC |
+| 2026-11-10 | La web y la VM decidían distinto sobre algunos zips | `link/` como enlace simbólico, duplicados, `./index.html`, archivo y carpeta con el mismo nombre | Las mismas reglas que `httpaas-publicar`, comparadas con `unzip` real |
+| 2026-11-10 | La VM `ns` en estado `aborted` | El disco del host llegó al 98 % | Se liberó espacio (de 1,8 GB a 15 GB libres) y se volvió a encender |
+| 2026-11-10 | Una prueba pasaba en el PC y fallaba en la CI | `Reconciliar` llama a `VBoxManage`, y la CI no tiene VirtualBox | La prueba usa un `VBoxManage` falso |
+
+> **Pendiente (C):** agregar sus problemas reales y mantener el detalle en
 > `docs/problemas.md`.
 
 ---
@@ -693,7 +731,9 @@ decir "funciona" mientras el navegador no resuelve. En el dashboard, lo que más
 cambió mi forma de trabajar fue probar con un viewport real y no confiar en una
 captura: el ancho nativo de un `input[type=file]` rompía toda la página en móvil.
 
-> **Pendiente (A y C):** un párrafo de cada uno.
+**Cristhian (Parte A).** Aprendí que acordar el contrato primero (las interfaces y sus Fakes) es lo que deja trabajar en paralelo: cada parte avanzó sin esperar las VMs de las otras, y al juntar las tres ramas no hubo ni un conflicto. También aprendí que una prueba que pasa no demuestra nada si no falla cuando el código está mal: rompiendo a propósito cada corrección encontré pruebas que no protegían lo que decían, y un bucle infinito escondido. Y que las revisiones independientes encuentran lo que uno no ve en su propio código: la más grave, que Eliminar podía borrar una VM ajena. En VirtualBox, aprendí a no borrar snapshots con la VM encendida y a esperar a que libere la VM antes de seguir.
+
+> **Pendiente (C):** un párrafo.
 
 ---
 
@@ -711,7 +751,9 @@ pruebas de tabla y revisión de código) y para detectar errores que se escapan 
 lectura rápida, como el ancho de un `input` o un `pipefail` que falla abierto. El
 criterio para aceptar una sugerencia fue siempre el mismo: que se pudiera comprobar.
 
-> **Pendiente:** que cada integrante agregue una línea sobre cómo la usó.
+- **Cristhian (Parte A):** la usé para planear las fases, escribir el código y las pruebas, y para revisiones independientes del código propio y de los compañeros. Cada hallazgo se verificó contra el código antes de corregirlo, cada corrección tiene una prueba que fallaba antes, y las mutaciones comprobaron que esas pruebas protegen lo que dicen.
+
+> **Pendiente (B y C):** una línea sobre cómo la usó cada uno.
 
 ---
 
