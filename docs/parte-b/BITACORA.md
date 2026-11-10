@@ -381,7 +381,7 @@ Detalle completo en [`docs/problemas.md`](../problemas.md).
 | `agregar ns` decía *invalid host* en vez de *reserved* | El regex de longitud (mínimo 3) rechazaba `ns` antes de llegar al chequeo de reservado | Mover el chequeo de `ns` antes del regex |
 | `apt` y `dig` sin `@servidor` fallaban | El DHCP entregó un DNS inalcanzable | `prepend` de `127.0.0.1, 10.0.3.3` en `dhclient.conf` (ver B1) |
 
-## B4. Imagen `ns.ova` — ⬜ exportada 2026-11-09, falta la verificación de A o C
+## B4. Imagen `ns.ova` — ✅ verificada 2026-11-09
 
 `ns` deja de vivir en un solo PC: se exporta como un archivo único que A y C
 importan con un comando, sin repetir B1–B3 a mano.
@@ -418,8 +418,10 @@ OK.
 | Redes | HostOnly + NAT |
 | Ignorado por git | `.gitignore:14:*.ova` |
 
-**Pendiente:** A o C importan el OVA y confirman B3 desde su PC. Esa es la
-verificación de la fase según el plan; hasta entonces B4 no está cerrada.
+**Verificación externa:** Cristhian importó `ns.ova` en su PC con
+`scripts/importar-ns.sh` (PR #4) y `scripts/verificar-ns.sh` pasó los chequeos
+de B1–B3: Bind9 responde, la zona directa e inversa están bien y
+`httpaas-dns` registra y quita sin tocar la zona a mano. B4 queda cerrada.
 
 ### Decisiones
 
@@ -576,7 +578,50 @@ cuatro fallos de `go test ./...` en Windows son los de siempre por entorno
 | `make vm-test` se saltaba la prueba | No existe `config.json` (está en `.gitignore`) | Crear una config temporal y pasarla con `HTTPAAS_CONFIG` |
 | El adaptador podía reportar éxito con un comando fallido | `executor.SSH.Run` solo devuelve `error` para fallos de transporte | Revisar `res.ExitCode` y devolver el `stderr` |
 
-## B6.5. Validación de `ns` al arrancar — ⬜ pendiente
+## B6.5. Validación de `ns` al arrancar — ✅ código y prueba VM; banner pendiente
+
+Antes de crear instancias, la webapp comprueba que `ns` responde. Sin eso, el
+primer `agregar` falla dentro de la cola y el usuario ve un error de DNS en vez
+de "la VM DNS no está encendida".
+
+### Lo que se hizo
+
+`Comprobar(ctx) error` en `internal/dns/dns.go`. Resuelve `ns` con el mismo
+`Resolver` del adaptador y compara con `cfg.DNS.IP`:
+
+1. Si resuelve a la IP configurada, devuelve `nil`.
+2. Si falla o resuelve a otra IP, devuelve `*errorComprobacion`: el mensaje es la
+   receta para el usuario (`VBoxManage import ns.ova` o `deploy/ns/instalar.sh`)
+   y la causa técnica queda en `Unwrap`, para `errors.Is`/`errors.As`.
+3. No crea ni repara nada: solo diagnostica.
+
+No se agregó a `puertos.DNS` a propósito: es un diagnóstico de arranque de este
+adaptador, no algo que el orquestador necesite de todo DNS. El contrato de
+`docs/PLAN.md` §4 queda intacto.
+
+### Verificación (salida real)
+
+```text
+$ go test -count=1 ./internal/dns/
+ok  	github.com/lyc4nthrope/httpaas-paginas-web/internal/dns
+
+$ go test -tags vm -count=1 -v -run TestVMComprobar ./internal/dns/
+=== RUN   TestVMComprobar
+--- PASS: TestVMComprobar (0.05s)
+```
+
+Cuatro pruebas unitarias: `TestComprobarOK`, `TestComprobarServidorCaido`,
+`TestComprobarIpEquivocada` y el caso de host vacío. El camino de error se
+comprobó contra la VM real apuntando `dns.ip` a `192.168.10.250`: tarda 5.01 s
+(el tiempo de espera del resolvedor) y devuelve la receta exacta.
+
+### Pendiente
+
+- **Banner en el dashboard (B-12).** Requiere un campo en `web.Vista`
+  (`internal/web/web.go`, de A) y el cableado en `cmd/httpaas/main.go` (A7).
+  Además `main.go` hoy rechaza el modo real (`"el modo real se conecta en la
+  fase A7"`), así que la captura no se puede tomar hasta A7. Aparcado sin tocar
+  archivos de A.
 
 ## B7. Dashboard — ⬜ pendiente
 

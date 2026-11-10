@@ -106,9 +106,9 @@ ssh httpaas@192.168.10.10 sudo -n cat /etc/shadow                         # rech
 📸 **B-05** — agregar + `dig`. 📸 **B-06** — rechazo del nombre malicioso y de `sudo cat`. 📸 **B-07** — archivo `.jnl` en `/var/lib/bind/` (prueba de que la actualización fue dinámica).
 **Commit:** `feat(ns): add httpaas-dns for dynamic a and ptr records`
 
-### B4. Exportar `ns` para el equipo ⬜ (H2)
+### B4. Exportar `ns` para el equipo ✅ 2026-11-09 (H2)
 `VBoxManage export ns -o ns.ova` y subirlo a la carpeta compartida del equipo (no al repositorio). A y C lo importan con `VBoxManage import ns.ova`.
-**Verificación:** A o C confirman B3 desde su PC.
+**Verificación:** A o C confirman B3 desde su PC. ✅ Cristhian importó `ns.ova` en su PC con `scripts/importar-ns.sh` y `scripts/verificar-ns.sh` pasó los chequeos de B1–B3 (PR #4).
 
 ### B5. Resolver `*.cloud.local` desde el host ✅ 2026-11-09 (H2)
 **Meta:** que el navegador abra `http://paisajes.cloud.local`.
@@ -135,10 +135,11 @@ ssh httpaas@192.168.10.10 sudo -n cat /etc/shadow                         # rech
 **Verificación:** `make check` y `make vm-test` en verde.
 **Commit:** `feat(dns): implement dns port over ssh and httpaas-dns`
 
-### B6.5 Validación de la VM `ns` ⬜ (H2)
+### B6.5 Validación de la VM `ns` 🟡 (H2)
+> **Estado 2026-11-09:** `Comprobar` y sus pruebas están hechos (`60d11a4`); `TestVMComprobar` pasa contra `ns`. Falta solo el banner B-12, que necesita `web.Vista` (A) y el cableado de A7.
 **Meta:** detectar si `ns` responde **antes** de que el usuario cree una VM que fallará un minuto después en el paso DNS, con un mensaje accionable en vez de un `error` a medias.
 1. En `internal/dns`, método `Comprobar(ctx) error` sobre el tipo concreto — **no se añade a `puertos.DNS`**, así que el contrato §4.2 no cambia y no hace falta acuerdo del equipo. Reutiliza lo de B6:
-   - `Resolver(ctx, dominio.FQDN("ns", cfg.Dominio))` debe devolver exactamente `cfg.DNS.IP`.
+   - `Resolver(ctx, "ns")` debe devolver exactamente `cfg.DNS.IP`. Se pasa el label, no el FQDN, porque `Resolver` agrega el dominio (decisión de B6).
    - No responde (timeout/conexión rechazada) o devuelve otra IP → error con la receta de recuperación incrustada:
      > `no se contacta la VM DNS en 192.168.10.10. Si la VM ns no existe: VBoxManage import ns.ova (B4) o créala con deploy/ns/instalar.sh (B1–B3)`
    - Una sola consulta cubre los tres fallos: VM apagada, `named` caído, zona rota o sin el registro estático `ns → .10`.
