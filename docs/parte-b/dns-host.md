@@ -49,12 +49,18 @@ Para ver qué reglas hay: `Get-DnsClientNrptRule`.
 
 - **`nslookup` no usa NRPT.** Hace sus propias consultas al servidor que le digas.
   Para probar usa `Resolve-DnsName` o `ping`.
+- **`Resolve-DnsName -Server` no es un atajo para saltarse la regla.** Con un nombre
+  dentro de `.cloud.local`, NRPT se aplica **antes** y la consulta va igual a
+  `192.168.10.10`: `Resolve-DnsName ns.cloud.local -Server 8.8.8.8` devuelve el
+  registro correcto aunque `8.8.8.8` no conozca la zona. Para preguntarle de verdad
+  a otro servidor usa `nslookup ns.cloud.local 8.8.8.8`, que da *Non-existent domain*.
 - **Firefox con "DNS sobre HTTPS" activo se salta el resolver del sistema.** Para
   la prueba, desactívalo en *Ajustes → Privacidad y seguridad*.
 - **La regla cubre `.cloud.local`, no la zona inversa.** `Resolve-DnsName 192.168.10.10`
   consulta `10.168.192.in-addr.arpa`, que no coincide con el sufijo y sigue yendo al
   DNS del ISP. No afecta al navegador; el `PTR` existe y responde si se pregunta a
-  `ns` directamente: `Resolve-DnsName 192.168.10.10 -Server 192.168.10.10 -Type PTR`.
+  `ns` directamente: `Resolve-DnsName 192.168.10.10 -Server 192.168.10.10 -Type PTR`
+  (aquí el nombre no coincide con la regla, así que `-Server` sí se respeta).
 - Requiere que `ns` esté encendida y `192.168.10.10` sea alcanzable.
 
 ---

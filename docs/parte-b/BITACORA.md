@@ -506,6 +506,7 @@ debian.org -> HTTP 200
 | `ping 192.168.10.10` daba 100% perdidos justo tras `startvm` | La VM aún estaba en el arranque EFI; tarda más que un BIOS | Esperar a que `named` esté activo antes de concluir que la red falla |
 | `Resolve-DnsName 192.168.10.10` no devuelve el `PTR` | La regla NRPT cubre `.cloud.local`, no la zona inversa `10.168.192.in-addr.arpa` | No afecta al navegador; consultar con `-Server 192.168.10.10` |
 | `nslookup ns.cloud.local` falla con la regla puesta | `nslookup` no usa NRPT | Probar con `Resolve-DnsName` o `ping` |
+| `Resolve-DnsName ns.cloud.local -Server 8.8.8.8` devuelve el registro | NRPT se aplica antes que `-Server` cuando el nombre cae en el sufijo | Usar `nslookup` para consultar otro servidor de verdad |
 
 ## B6. Adaptador `internal/dns` — ⬜ pendiente
 
