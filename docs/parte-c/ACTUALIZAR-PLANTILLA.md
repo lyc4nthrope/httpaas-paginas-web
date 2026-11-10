@@ -31,14 +31,16 @@ sudo bash deploy/plantilla/instalar.sh
 ```bash
 sudo bash deploy/plantilla/verificar-plantilla.sh
 ```
-**Comprobación:** `Resultado: 21 OK, 0 FALLA`. Revisa, entre otras cosas:
+**Comprobación:** `Resultado: 23 OK, 0 FALLA`. Revisa, entre otras cosas:
 - Los dos scripts son de root, nadie más puede modificarlos, y son iguales a los del repo.
 - El primer arranque lee `/httpaas/dominio`.
 - La unidad está habilitada y espera a `vboxadd-service`.
 - SSH sin contraseña y sin root, y `sudo` limitado a `httpaas-publicar`.
 - La plantilla está limpia: no existe `/etc/httpaas/aplicado` y el hostname es `apache-plantilla`.
 
-Si algo da FALLA, la línea dice qué es. Si `/etc/httpaas/aplicado` existe (C5.2), bórralo con `sudo rm /etc/httpaas/aplicado`.
+Si algo da FALLA, la línea dice qué es. Los dos casos más comunes:
+- `/etc/httpaas/aplicado` existe (C5.2): `sudo rm /etc/httpaas/aplicado`.
+- Quedó habilitado un sitio de una prueba (en el disco del 10 de noviembre había un `paisajes-web.conf`): `sudo a2dissite paisajes-web && sudo rm /etc/apache2/sites-available/paisajes-web.conf`, y lo mismo con cualquier otro que no sea `000-default`.
 
 ## 4. Apagar y subir el disco
 
