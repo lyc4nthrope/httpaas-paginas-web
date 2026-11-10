@@ -36,8 +36,10 @@ func TestRealModeChecksTheFilesFirst(t *testing.T) {
 	}
 }
 
-// With the files in place, real mode wires every adapter and serves the dashboard. It
-// contacts nothing at build time except the ns check, which here gets no answer.
+// With the files in place, real mode wires every adapter and serves the dashboard. At
+// startup it asks VirtualBox for its VMs (Reconciliar) and checks ns. VBoxManage is a
+// fake script here, so the test does not depend on VirtualBox being installed (CI has
+// none), and nothing answers at the ns address.
 func TestRealModeServes(t *testing.T) {
 	cfg := ejemplo(t)
 	dir := t.TempDir()
@@ -46,6 +48,10 @@ func TestRealModeServes(t *testing.T) {
 	cfg.VBox.DiscoBase = filepath.Join(dir, "ApacheServer.vdi")
 	cfg.Datos = filepath.Join(dir, "instancias.json")
 	cfg.DNS.IP = "127.0.0.2" // nothing answers there: the ns warning must appear, not a crash
+	cfg.VBox.VBoxManage = filepath.Join(dir, "VBoxManage")
+	if err := os.WriteFile(cfg.VBox.VBoxManage, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil { // "no VMs"
+		t.Fatal(err)
+	}
 	for _, f := range []string{cfg.SSH.Llave, cfg.VBox.DiscoBase} {
 		if err := os.WriteFile(f, nil, 0o600); err != nil {
 			t.Fatal(err)
