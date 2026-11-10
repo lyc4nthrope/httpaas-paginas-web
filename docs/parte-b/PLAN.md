@@ -110,7 +110,7 @@ ssh httpaas@192.168.10.10 sudo -n cat /etc/shadow                         # rech
 `VBoxManage export ns -o ns.ova` y subirlo a la carpeta compartida del equipo (no al repositorio). A y C lo importan con `VBoxManage import ns.ova`.
 **Verificación:** A o C confirman B3 desde su PC.
 
-### B5. Resolver `*.cloud.local` desde el host ⬜ (H2)
+### B5. Resolver `*.cloud.local` desde el host ✅ 2026-11-09 (H2)
 **Meta:** que el navegador abra `http://paisajes.cloud.local`.
 1. **Linux:**
    - `/etc/nsswitch.conf`, línea `hosts:` → `dns` **antes** de `mdns4_minimal` (`[NOTFOUND=return]` corta la búsqueda de `.local`; ver §1 del plan general). El script preserva los demás módulos de la línea y solo reubica `dns`.

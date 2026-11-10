@@ -51,6 +51,10 @@ Para ver qué reglas hay: `Get-DnsClientNrptRule`.
   Para probar usa `Resolve-DnsName` o `ping`.
 - **Firefox con "DNS sobre HTTPS" activo se salta el resolver del sistema.** Para
   la prueba, desactívalo en *Ajustes → Privacidad y seguridad*.
+- **La regla cubre `.cloud.local`, no la zona inversa.** `Resolve-DnsName 192.168.10.10`
+  consulta `10.168.192.in-addr.arpa`, que no coincide con el sufijo y sigue yendo al
+  DNS del ISP. No afecta al navegador; el `PTR` existe y responde si se pregunta a
+  `ns` directamente: `Resolve-DnsName 192.168.10.10 -Server 192.168.10.10 -Type PTR`.
 - Requiere que `ns` esté encendida y `192.168.10.10` sea alcanzable.
 
 ---

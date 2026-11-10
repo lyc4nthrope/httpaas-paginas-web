@@ -439,7 +439,73 @@ verificación de la fase según el plan; hasta entonces B4 no está cerrada.
 Ninguno. El export se ejecutó desde la raíz del repositorio y el archivo quedó
 ahí; git lo ignora, pero hay que sacarlo antes de cualquier `git clean -xdf`.
 
-## B5. Resolución de `*.cloud.local` en el host — ⬜ pendiente
+## B5. Resolución de `*.cloud.local` en el host — ✅ 2026-11-09
+
+`ns` ya respondía `cloud.local`, pero el sistema operativo del host no le
+preguntaba: usaba el DNS del ISP. Esta fase conecta los dos **sin romper
+internet**, con DNS dividido: solo `*.cloud.local` va a `ns`.
+
+### Lo que se hizo
+
+1. **Windows:** regla NRPT para el sufijo `.cloud.local` apuntando a
+   `192.168.10.10`.
+2. **Linux:** `scripts/dns-host-linux.sh`, idempotente y con `--undo`.
+   - Reubica `dns` **antes** de `mdns[46]_minimal` en `/etc/nsswitch.conf`
+     conservando los demás módulos de la línea.
+   - Con `systemd-resolved` activo: `resolvectl dns` + `resolvectl domain '~cloud.local'`.
+   - Sin él: `nameserver 192.168.10.10` como primera línea de `/etc/resolv.conf`.
+3. Documentar ambos procedimientos y cómo deshacerlos en
+   [`dns-host.md`](dns-host.md).
+
+### Verificación (salida real)
+
+```text
+PS> Get-DnsClientNrptRule | Format-List Namespace, NameServers, Comment
+Namespace   : {.cloud.local}
+NameServers : 192.168.10.10
+Comment     : httpaas-b5
+
+PS> Resolve-DnsName ns.cloud.local
+Name             Type IPAddress
+ns.cloud.local   A    192.168.10.10
+
+PS> ping ns.cloud.local
+Paquetes: enviados = 4, recibidos = 4, perdidos = 0 (0% perdidos)
+
+PS> Invoke-WebRequest https://debian.org -Method Head
+debian.org -> HTTP 200
+```
+
+| Comprobación | Resultado |
+|---|---|
+| Regla NRPT | `.cloud.local` → `192.168.10.10` |
+| `Resolve-DnsName ns.cloud.local` | `192.168.10.10` |
+| `ping ns.cloud.local` | 4/4, 0% perdidos |
+| Internet | `debian.org` HTTP 200, resuelve a IP de Fastly |
+| Registro dinámico de B3 | `prueba.cloud.local` → `192.168.10.99` |
+| Nombre inexistente | `noexiste.cloud.local` → NXDOMAIN (correcto) |
+
+### Decisiones
+
+- **NRPT y no `hosts`.** `hosts` obliga a agregar cada VM a mano y no cubre
+  instancias nuevas. NRPT resuelve todo el sufijo solo y se deshace con un comando.
+- **DNS dividido, no cambiar el DNS global.** Solo `cloud.local` va a `ns`; el
+  resto sigue por el ISP. Cambiar el DNS global dejaría internet dependiendo de la VM.
+- **El script preserva módulos, no impone una línea.** La versión inicial
+  reescribía la línea `hosts:` completa y perdía `mymachines`, `resolve` o
+  `myhostname` en distros que los usan. Ahora solo **reubica** `dns`: la única
+  regla es que exista y esté antes de `mdns[46]_minimal`.
+- **`getent hosts` como verificación final del script.** Consulta por NSS, el
+  mismo camino que usa el navegador. `dig` habla DNS directo y se salta
+  `nsswitch.conf`, así que diría "funciona" con el sistema roto.
+
+### Problemas encontrados
+
+| Síntoma | Causa | Solución |
+|---|---|---|
+| `ping 192.168.10.10` daba 100% perdidos justo tras `startvm` | La VM aún estaba en el arranque EFI; tarda más que un BIOS | Esperar a que `named` esté activo antes de concluir que la red falla |
+| `Resolve-DnsName 192.168.10.10` no devuelve el `PTR` | La regla NRPT cubre `.cloud.local`, no la zona inversa `10.168.192.in-addr.arpa` | No afecta al navegador; consultar con `-Server 192.168.10.10` |
+| `nslookup ns.cloud.local` falla con la regla puesta | `nslookup` no usa NRPT | Probar con `Resolve-DnsName` o `ping` |
 
 ## B6. Adaptador `internal/dns` — ⬜ pendiente
 
