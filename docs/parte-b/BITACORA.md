@@ -643,6 +643,9 @@ instancias con su estado. Part B reescribe la plantilla provisional de A5.
 4. **Resto del contrato de B7:** un solo formulario `multipart/form-data` con
    Aceptar/Publicar, enlace en pestaña nueva, IP/24, nombre de la VM, fecha,
    Eliminar con `confirm()`, estado vacío y mensajes flash.
+5. **Rediseño visual:** descripción de qué hace la página, tira de tres pasos,
+   tarjetas con sombra, píldoras de estado con color y texto, tabla con hover,
+   contador de instancias y foco visible. Los estilos siguen inline.
 
 ### Verificación (modo simulado, binario real)
 
