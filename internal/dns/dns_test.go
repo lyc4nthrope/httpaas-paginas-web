@@ -243,3 +243,66 @@ func TestResolverHostVacioNoConsulta(t *testing.T) {
 		t.Error("the resolver was asked for an empty host")
 	}
 }
+
+// recetaComprobar is the exact message the plan asks for (B6.5).
+func recetaComprobar(ip string) string {
+	return "no se contacta la VM DNS en " + ip +
+		". Si la VM ns no existe: VBoxManage import ns.ova (B4) o créala con deploy/ns/instalar.sh (B1-B3)"
+}
+
+func TestComprobarOK(t *testing.T) {
+	d, _ := nuevoFalso(t)
+	var pedido string
+	d.lookup = func(_ context.Context, fqdn string) ([]string, error) {
+		pedido = fqdn
+		return []string{"192.168.10.10"}, nil
+	}
+
+	if err := d.Comprobar(context.Background()); err != nil {
+		t.Fatalf("Comprobar: %v", err)
+	}
+	if quiere := "ns.cloud.local"; pedido != quiere {
+		t.Errorf("lookup asked for %q, want %q", pedido, quiere)
+	}
+}
+
+func TestComprobarServidorCaido(t *testing.T) {
+	d, _ := nuevoFalso(t)
+	caida := errors.New("i/o timeout")
+	d.lookup = func(context.Context, string) ([]string, error) { return nil, caida }
+
+	err := d.Comprobar(context.Background())
+	if err == nil {
+		t.Fatal("Comprobar passed with the server down")
+	}
+	if quiere := recetaComprobar("192.168.10.10"); err.Error() != quiere {
+		t.Errorf("message = %q\nwant      %q", err.Error(), quiere)
+	}
+	if !errors.Is(err, caida) {
+		t.Error("the technical cause is not reachable through errors.Is")
+	}
+}
+
+func TestComprobarIpEquivocada(t *testing.T) {
+	d, _ := nuevoFalso(t)
+	d.lookup = func(context.Context, string) ([]string, error) {
+		return []string{"192.168.10.99"}, nil
+	}
+
+	err := d.Comprobar(context.Background())
+	if err == nil {
+		t.Fatal("Comprobar passed with the wrong address")
+	}
+	if quiere := recetaComprobar("192.168.10.10"); err.Error() != quiere {
+		t.Errorf("message = %q\nwant      %q", err.Error(), quiere)
+	}
+	if causa := errors.Unwrap(err); causa == nil {
+		t.Fatal("the wrong address is not reported as a cause")
+	} else {
+		for _, fragmento := range []string{"192.168.10.99", "192.168.10.10"} {
+			if !strings.Contains(causa.Error(), fragmento) {
+				t.Errorf("cause = %q, want it to contain %q", causa, fragmento)
+			}
+		}
+	}
+}

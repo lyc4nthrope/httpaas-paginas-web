@@ -13,9 +13,11 @@ import (
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/executor"
 )
 
-// TestVMRegistrarResolverQuitar walks the whole adapter against the real server:
-// the helper writes the record over SSH and the private resolver reads it back.
-func TestVMRegistrarResolverQuitar(t *testing.T) {
+// configVM loads the config the app would use. It skips the test when there is
+// none, so a machine without the real environment still runs make vm-test.
+func configVM(t *testing.T) config.Config {
+	t.Helper()
+
 	ruta := os.Getenv("HTTPAAS_CONFIG")
 	if ruta == "" {
 		ruta = "../../config.json"
@@ -24,14 +26,25 @@ func TestVMRegistrarResolverQuitar(t *testing.T) {
 	if err != nil {
 		t.Skipf("no usable config at %s: %v", ruta, err)
 	}
+	return cfg
+}
 
+// nuevoVM builds the adapter with the real SSH channel to the ns VM.
+func nuevoVM(cfg config.Config) *DNS {
 	ssh := &executor.SSH{
 		Host:       cfg.DNS.IP,
 		User:       cfg.DNS.Usuario,
 		KeyPath:    cfg.SSH.Llave,
 		KnownHosts: cfg.SSH.KnownHosts,
 	}
-	d := Nuevo(ssh, cfg)
+	return Nuevo(ssh, cfg)
+}
+
+// TestVMRegistrarResolverQuitar walks the whole adapter against the real server:
+// the helper writes the record over SSH and the private resolver reads it back.
+func TestVMRegistrarResolverQuitar(t *testing.T) {
+	cfg := configVM(t)
+	d := nuevoVM(cfg)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -65,5 +78,20 @@ func TestVMRegistrarResolverQuitar(t *testing.T) {
 	}
 	if _, err := d.Resolver(ctx, host); err == nil {
 		t.Error("the name still resolves after Quitar")
+	}
+}
+
+// TestVMComprobar is the B6.5 check with ns running: the diagnostic must pass.
+// The failing half is covered by the unit tests with an injected lookup, because
+// powering the VM off inside a test would make the suite destructive.
+func TestVMComprobar(t *testing.T) {
+	cfg := configVM(t)
+	d := nuevoVM(cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := d.Comprobar(ctx); err != nil {
+		t.Fatalf("Comprobar: %v", err)
 	}
 }

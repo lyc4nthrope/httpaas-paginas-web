@@ -110,6 +110,44 @@ func (d *DNS) Resolver(ctx context.Context, host string) (string, error) {
 	return ips[0], nil
 }
 
+// Comprobar reports whether the ns VM answers for its own name with the address
+// the configuration expects. A single lookup covers the three failures that make
+// the platform unusable: the VM is off, named is down, or the static
+// ns -> .10 record is missing from the zone.
+//
+// It is deliberately not part of puertos.DNS: it is a startup diagnostic of this
+// adapter, not something the orchestrator needs from every DNS implementation.
+// The recovery recipe travels in the message; nothing here creates or repairs a VM.
+func (d *DNS) Comprobar(ctx context.Context) error {
+	ip, err := d.Resolver(ctx, "ns")
+	if err == nil && ip == d.cfg.DNS.IP {
+		return nil
+	}
+	causa := err
+	if causa == nil {
+		causa = fmt.Errorf("resolves to %s, want %s", ip, d.cfg.DNS.IP)
+	}
+	return &errorComprobacion{
+		msg: fmt.Sprintf(
+			"no se contacta la VM DNS en %s. Si la VM ns no existe: VBoxManage import ns.ova (B4) o créala con deploy/ns/instalar.sh (B1-B3)",
+			d.cfg.DNS.IP,
+		),
+		causa: causa,
+	}
+}
+
+// errorComprobacion keeps the user-facing recipe as the message while preserving
+// the technical cause for errors.Is and errors.As. Error returns the recipe
+// alone, because that is what the dashboard shows.
+type errorComprobacion struct {
+	msg   string
+	causa error
+}
+
+func (e *errorComprobacion) Error() string { return e.msg }
+
+func (e *errorComprobacion) Unwrap() error { return e.causa }
+
 // ejecutar runs one subcommand of the helper. The command is built argument by
 // argument; nothing is ever joined into a shell line.
 func (d *DNS) ejecutar(ctx context.Context, sub string, args ...string) error {
