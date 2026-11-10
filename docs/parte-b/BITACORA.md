@@ -623,6 +623,56 @@ comprobó contra la VM real apuntando `dns.ip` a `192.168.10.250`: tarda 5.01 s
   fase A7"`), así que la captura no se puede tomar hasta A7. Aparcado sin tocar
   archivos de A.
 
-## B7. Dashboard — ⬜ pendiente
+## B7. Dashboard — ✅ 2026-11-09
+
+La pantalla que ve el usuario: un formulario para crear y publicar, y la tabla de
+instancias con su estado. Part B reescribe la plantilla provisional de A5.
+
+### Lo que se hizo
+
+`internal/web/templates/dashboard.html`:
+
+1. **Estados con color y texto.** `<span class="estado estado-{{.Estado}}">` con un
+   punto de color y la etiqueta: verde `lista`, ámbar `creando`/`publicando`/
+   `eliminando`, rojo `error`/`perdida`. No depende solo del color.
+2. **Responsive a 360 px.** Bajo 640 px la tabla pasa a tarjetas: cada celda lleva
+   `data-etiqueta` y `::before` muestra el nombre de la columna.
+3. **Accesibilidad.** `:focus-visible` con contorno, `role="status"` en el aviso,
+   `role="alert"` en los errores por campo, etiquetas asociadas con `for`, botones
+   con texto.
+4. **Resto del contrato de B7:** un solo formulario `multipart/form-data` con
+   Aceptar/Publicar, enlace en pestaña nueva, IP/24, nombre de la VM, fecha,
+   Eliminar con `confirm()`, estado vacío y mensajes flash.
+
+### Verificación (modo simulado, binario real)
+
+```text
+GET /            -> 200  vacío=True  título=True
+POST /instancias -> 200
+refresco creando -> True
+fila paisajes    -> nombre=True ip=True badge=estado-lista enlace=True target=True
+api              -> {"Nombre":"paisajes","IP":"192.168.10.30",...,"Estado":"lista",...}
+POST eliminar    -> 200
+vacío otra vez   -> True
+```
+
+Con dos instancias (`paisajes` `.30`, `negocios` `.31`): 2 filas, 2 badges
+`estado-lista`, 2 botones Eliminar, sin `meta refresh` cuando no hay trabajo y
+con el flash `Instancia negocios en creación`.
+
+`go test ./internal/web/` en verde; `gofmt`, `go vet` y `go build` limpios.
+
+### Decisiones
+
+- **Estilos inline, no `static/estilos.css`.** `web.go` solo embebe
+  `templates/*.html`; servir `static/` exigiría agregar `//go:embed static/*` y una
+  ruta en un archivo de A. Para una hoja de estilos no vale la dependencia.
+- **`<meta refresh>` en vez de `static/app.js`.** El plan lo dejaba como opcional.
+  `GET /api/instancias` ya existe, pero el refresco completo es suficiente y evita
+  otro archivo estático.
+
+### Pendiente
+
+- Las capturas B-09, B-10 y B-11 las toma el usuario en su documento aparte.
 
 ## B8. Prueba de punta a punta y documento — ⬜ pendiente

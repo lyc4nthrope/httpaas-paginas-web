@@ -5,63 +5,187 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   {{if .Refrescar}}<meta http-equiv="refresh" content="3;url=/">{{end}}
   <title>Gestión de páginas y aplicaciones web</title>
-  <!-- Provisional version from phase A5. Part B replaces it in B7 using the Vista fields. -->
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0 auto; max-width: 960px; padding: 16px; }
-    form { display: grid; gap: 8px; max-width: 520px; }
-    .fila { display: flex; gap: 8px; }
-    .fila input { flex: 1; min-width: 0; }
-    .error { color: #b00020; margin: 0; }
-    .aviso { background: #e8f5e9; padding: 8px; }
-    table { border-collapse: collapse; width: 100%; margin-top: 24px; }
-    th, td { border-bottom: 1px solid #ccc; padding: 6px; text-align: left; }
-    .tabla { overflow-x: auto; }
+    :root {
+      --fondo: #f6f7f9;
+      --texto: #1b1f24;
+      --borde: #d5d9df;
+      --acento: #0b57d0;
+      --ok: #1e7b34;
+      --ok-fondo: #e6f4ea;
+      --trabajo: #8a5a00;
+      --trabajo-fondo: #fff4d6;
+      --error: #b00020;
+      --error-fondo: #fde8ec;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0 auto;
+      max-width: 1040px;
+      padding: 16px;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      line-height: 1.45;
+      color: var(--texto);
+      background: var(--fondo);
+    }
+    h1 { margin: 0 0 16px; font-size: 1.35rem; }
+    h2 { margin: 28px 0 8px; font-size: 1.1rem; }
+    .aviso, .error { margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; }
+    .aviso { color: var(--ok); background: var(--ok-fondo); }
+    .error { color: var(--error); background: var(--error-fondo); }
+    form.crear {
+      display: grid;
+      gap: 14px;
+      max-width: 560px;
+      padding: 16px;
+      background: #fff;
+      border: 1px solid var(--borde);
+      border-radius: 12px;
+    }
+    label { font-weight: 600; }
+    .fila { display: flex; flex-wrap: wrap; gap: 8px; }
+    .fila input {
+      flex: 1 1 220px;
+      min-width: 0;
+      padding: 9px 10px;
+      font: inherit;
+      color: inherit;
+      background: #fff;
+      border: 1px solid var(--borde);
+      border-radius: 8px;
+    }
+    button {
+      padding: 9px 14px;
+      font: inherit;
+      color: #fff;
+      background: var(--acento);
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:hover { filter: brightness(0.92); }
+    button.peligro { background: #8c1d18; }
+    :focus-visible { outline: 3px solid #f2a900; outline-offset: 2px; }
+    .tabla {
+      overflow-x: auto;
+      background: #fff;
+      border: 1px solid var(--borde);
+      border-radius: 12px;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--borde);
+    }
+    tr:last-child td { border-bottom: 0; }
+    th {
+      font-size: .8rem;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+      color: #4a5158;
+    }
+    .estado { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+    .estado::before {
+      content: "";
+      width: .6em;
+      height: .6em;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .estado-lista { color: var(--ok); }
+    .estado-creando, .estado-publicando, .estado-eliminando { color: var(--trabajo); }
+    .estado-error, .estado-perdida { color: var(--error); }
+    .detalle { color: var(--error); }
+    .vacio {
+      padding: 16px;
+      background: #fff;
+      border: 1px dashed var(--borde);
+      border-radius: 12px;
+    }
+    .acciones form { margin: 0; }
+    @media (max-width: 640px) {
+      body { padding: 12px; }
+      .tabla { overflow: visible; background: transparent; border: 0; }
+      table, tbody, tr, td { display: block; width: 100%; }
+      thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+      tr {
+        margin-bottom: 10px;
+        padding: 6px 12px;
+        background: #fff;
+        border: 1px solid var(--borde);
+        border-radius: 12px;
+      }
+      td { padding: 6px 0; border-bottom: 0; }
+      td[data-etiqueta]::before {
+        content: attr(data-etiqueta);
+        display: block;
+        font-size: .78rem;
+        letter-spacing: .03em;
+        text-transform: uppercase;
+        color: #4a5158;
+      }
+      td.acciones { padding-top: 10px; }
+    }
   </style>
 </head>
 <body>
   <h1>Gestión de páginas y aplicaciones web</h1>
   {{with .Aviso}}<p class="aviso" role="status">{{.}}</p>{{end}}
 
-  <form method="post" action="/instancias" enctype="multipart/form-data">
-    <label for="nombre">Nombre del host</label>
-    <div class="fila">
-      <input id="nombre" name="{{.CampoNombre}}" value="{{.Nombre}}" autocomplete="off" required>
-      <button type="submit" formaction="/instancias">Aceptar</button>
+  <form class="crear" method="post" action="/instancias" enctype="multipart/form-data">
+    <div>
+      <label for="nombre">Nombre del host</label>
+      <div class="fila">
+        <input id="nombre" name="{{.CampoNombre}}" value="{{.Nombre}}" autocomplete="off" required>
+        <button type="submit" formaction="/instancias">Aceptar</button>
+      </div>
+      {{with index .Errores .CampoNombre}}<p class="error" role="alert">{{.}}</p>{{end}}
     </div>
-    {{with index .Errores .CampoNombre}}<p class="error">{{.}}</p>{{end}}
 
-    <label for="archivo">Contenido web (comprimido, máximo {{.MaxZipMB}} MB)</label>
-    <div class="fila">
-      <input id="archivo" name="{{.CampoArchivo}}" type="file" accept=".zip">
-      <button type="submit" formaction="/contenido">Publicar</button>
+    <div>
+      <label for="archivo">Contenido web (comprimido, máximo {{.MaxZipMB}} MB)</label>
+      <div class="fila">
+        <input id="archivo" name="{{.CampoArchivo}}" type="file" accept=".zip">
+        <button type="submit" formaction="/contenido">Publicar</button>
+      </div>
+      {{with index .Errores .CampoArchivo}}<p class="error" role="alert">{{.}}</p>{{end}}
     </div>
-    {{with index .Errores .CampoArchivo}}<p class="error">{{.}}</p>{{end}}
   </form>
 
   <h2>Instancias disponibles</h2>
   {{if .Instancias}}
   <div class="tabla">
     <table>
-      <thead><tr><th>Enlace</th><th>IP</th><th>Máquina virtual</th><th>Creada</th><th>Estado</th><th></th></tr></thead>
+      <thead>
+        <tr><th>Enlace</th><th>IP</th><th>Máquina virtual</th><th>Creada</th><th>Estado</th><th></th></tr>
+      </thead>
       <tbody>
       {{range .Instancias}}
         <tr>
-          <td><a href="{{.URL}}" target="_blank" rel="noopener">{{.URL}}</a></td>
-          <td>{{.IP}}/{{.Prefijo}}</td>
-          <td>{{.Nombre}}</td>
-          <td>{{.Creada}}</td>
-          <td>{{.Estado}}{{with .Error}}<br><small class="error">{{.}}</small>{{end}}</td>
-          <td>{{if .Eliminable}}
+          <td data-etiqueta="Enlace"><a href="{{.URL}}" target="_blank" rel="noopener">{{.URL}}</a></td>
+          <td data-etiqueta="IP">{{.IP}}/{{.Prefijo}}</td>
+          <td data-etiqueta="Máquina virtual">{{.Nombre}}</td>
+          <td data-etiqueta="Creada">{{.Creada}}</td>
+          <td data-etiqueta="Estado">
+            <span class="estado estado-{{.Estado}}">{{.Estado}}</span>
+            {{with .Error}}<br><small class="detalle">{{.}}</small>{{end}}
+          </td>
+          <td class="acciones">
+            {{if .Eliminable}}
             <form method="post" action="/instancias/{{.Nombre}}/eliminar" onsubmit="return confirm('¿Eliminar la instancia {{.Nombre}}?')">
-              <button type="submit">Eliminar</button>
-            </form>{{end}}</td>
+              <button type="submit" class="peligro">Eliminar</button>
+            </form>
+            {{end}}
+          </td>
         </tr>
       {{end}}
       </tbody>
     </table>
   </div>
   {{else}}
-  <p>Aún no hay instancias. Escribe un nombre y pulsa Aceptar.</p>
+  <p class="vacio">Aún no hay instancias. Escribe un nombre y pulsa Aceptar.</p>
   {{end}}
 </body>
 </html>
