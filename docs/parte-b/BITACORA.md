@@ -711,4 +711,9 @@ no se crea ninguna instancia.
 
 - Las capturas B-09, B-10 y B-11 las toma el usuario en su documento aparte.
 
-## B8. Prueba de punta a punta y documento — ⬜ pendiente
+## B8. Documento final — 🟡 borrador 2026-11-09
+
+`docs/DOCUMENTO.md` tiene la estructura completa, la Parte B desarrollada (B0–B7, con
+problemas y decisiones) y los huecos marcados para A y C. Faltan sus secciones, las
+capturas y el banner B-12 (A7). El checklist de entrega está al final del documento.
+La prueba completa de punta a punta se ejecuta cuando A7 y C7 estén cerrados.

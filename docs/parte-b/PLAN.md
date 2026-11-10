@@ -175,7 +175,8 @@ ssh httpaas@192.168.10.10 sudo -n cat /etc/shadow                         # rech
 📸 **B-09** — dashboard vacío. 📸 **B-10** — dos instancias, como en la figura. 📸 **B-11** — vista en el ancho de un celular.
 **Commit:** `feat(web): build the instances dashboard`
 
-### B8. Documento final ⬜ (H5)
+### B8. Documento final 🟡 (H5)
+> **Estado 2026-11-09:** `docs/DOCUMENTO.md` tiene la estructura completa, la Parte B desarrollada (B0–B7, con problemas y decisiones) y los huecos marcados para A y C. Faltan sus secciones, las capturas y el banner B-12 (A7).
 **Meta:** el documento que pide el enunciado, con todo el equipo.
 1. `docs/DOCUMENTO.md`, que se exporta a PDF. Estructura: portada → introducción y objetivos → arquitectura (diagrama de C) → secciones 2 a 5 según la tabla del §9 del plan general, con las capturas en orden → problemas encontrados, mejoras y trabajo futuro (desde `docs/problemas.md`) → conocimientos aprendidos (un párrafo de cada uno) → uso de IA → referencias.
 2. Pedir a A y a C su sección en H4. Cada captura lleva un pie que dice qué se ve y por qué importa.
