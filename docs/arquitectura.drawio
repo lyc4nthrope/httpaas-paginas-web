@@ -1,0 +1,44 @@
+<mxfile host="app.diagrams.net" modified="2026-03-30T00:00:00.000Z" agent="HTTPaaS" version="21.0.0" type="device">
+  <diagram id="httpaas-arch" name="Arquitectura HTTPaaS">
+    <mxGraphModel dx="1000" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <!-- Host & Webapp -->
+        <mxCell id="host" value="HOST (Orquestador Go / WebApp)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="300" height="400" as="geometry" />
+        </mxCell>
+        <mxCell id="webapp" value="Webapp HTTPaaS&#10;(internal/publicar)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="host">
+          <mxGeometry x="40" y="60" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="vboxmanage" value="VBoxManage / Executor SSH" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="host">
+          <mxGeometry x="40" y="240" width="220" height="60" as="geometry" />
+        </mxCell>
+        <!-- Disco Multiattach -->
+        <mxCell id="vdi" value="Disco Base Multiattach&#10;ApacheServer.vdi (Congelado)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="440" y="40" width="220" height="100" as="geometry" />
+        </mxCell>
+        <!-- Instancias -->
+        <mxCell id="net" value="Red Bridged (192.168.10.0/24)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="440" y="200" width="580" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="vm1" value="httpaas-paisajes (.30)&#10;[paisajes-web]&#10;Debian 13 Hardened" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" vertex="1" parent="net">
+          <mxGeometry x="40" y="60" width="220" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="vm2" value="httpaas-negocios (.31)&#10;[negocios-web]&#10;Debian 13 Hardened" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" vertex="1" parent="net">
+          <mxGeometry x="320" y="60" width="220" height="100" as="geometry" />
+        </mxCell>
+        <!-- Flujos -->
+        <mxCell id="f1" value="1. Clonado &amp; StorageAttach" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthoLoop=1;jettySize=auto;html=1;strokeColor=#b85450;strokeWidth=2;" edge="1" parent="1" source="vboxmanage" target="vdi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f2" value="2. GuestProperties (firstboot)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthoLoop=1;jettySize=auto;html=1;strokeColor=#9673a6;strokeWidth=2;" edge="1" parent="1" source="vboxmanage" target="vm1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f3" value="3. Publicación ZIP (httpaas-publicar)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthoLoop=1;jettySize=auto;html=1;strokeColor=#d6b656;strokeWidth=2;" edge="1" parent="1" source="webapp" target="vm1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
