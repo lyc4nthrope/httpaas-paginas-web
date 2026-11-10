@@ -7,8 +7,8 @@
     CustomLog ${APACHE_LOG_DIR}/__HOSTNAME___access.log combined
 
     <Directory /var/www/__HOSTNAME__>
-        Options -Indexes +FollowSymLinks
-        AllowOverride All
+        Options -Indexes -FollowSymLinks
+        AllowOverride None
         Require all granted
     </Directory>
 </VirtualHost>

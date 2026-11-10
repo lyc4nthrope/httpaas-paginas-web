@@ -1,14 +1,17 @@
 # Procedimiento de Clonación Manual para Instancias HTTPaaS
 
 Este documento especifica los comandos VBoxManage requeridos para clonar, aprovisionar y destruir una instancia web basada en el disco multiattach de httpaas-base.
+# Procedimiento de Clonación Manual para Instancias HTTPaaS
+
+Este documento especifica los comandos VBoxManage requeridos para clonar, aprovisionar y destruir una instancia web basada en el disco multiattach de httpaas-base.
 
 ## Variables de Entorno (Ejemplo)
 - NAME: Nombre de la VM (ej. httpaas-paisajes)
 - IP: IP asignada (ej. 192.168.10.30)
 - HOSTNAME: Nombre de host (ej. paisajes-web)
 - DOMAIN: Dominio asignado (ej. paisajes.cloud.local)
-- DNS: Servidor DNS (ej. 192.168.10.1)
-- BRIDGE: Nombre de la interfaz de red Host (ej. "VirtualBox Host-Only Ethernet Adapter")
+- DNS: Servidor DNS (ej. 192.168.10.10)
+- HOSTONLY_NET: Nombre de la red Host-Only (ej. "vboxnet0" o "VirtualBox Host-Only Ethernet Adapter")
 - BASE_VDI: Ruta al disco multiattach ("$HOME/VirtualBox VMs/httpaas-base/ApacheServer.vdi")
 
 ---
@@ -18,8 +21,8 @@ Este documento especifica los comandos VBoxManage requeridos para clonar, aprovi
 ### 1. Registrar VM vacía
 VBoxManage createvm --name "<NAME>" --ostype Debian_64 --register
 
-### 2. Configurar Recursos y Red
-VBoxManage modifyvm "<NAME>" --memory 1024 --cpus 1 --nic1 bridged --bridgeadapter1 "<BRIDGE>"
+### 2. Configurar Recursos y Red (Solo-Anfitrión)
+VBoxManage modifyvm "<NAME>" --memory 512 --cpus 1 --nic1 hostonly --hostonlyadapter1 "<HOSTONLY_NET>"
 
 ### 3. Crear Controlador de Almacenamiento
 VBoxManage storagectl "<NAME>" --name "SATA" --add sata --controller IntelAhci
@@ -30,7 +33,7 @@ VBoxManage storageattach "<NAME>" --storagectl "SATA" --port 0 --device 0 --type
 ### 5. Configurar Guest Properties (Parámetros para httpaas-firstboot)
 VBoxManage guestproperty set "<NAME>" /httpaas/hostname "<HOSTNAME>"
 VBoxManage guestproperty set "<NAME>" /httpaas/ip "<IP>"
-VBoxManage guestproperty set "<NAME>" /httpaas/domain "<DOMAIN>"
+VBoxManage guestproperty set "<NAME>" /httpaas/dominio "<DOMAIN>"
 VBoxManage guestproperty set "<NAME>" /httpaas/dns "<DNS>"
 
 ### 6. Encender Instancia Headless
