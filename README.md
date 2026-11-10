@@ -13,6 +13,7 @@ Parcial 3 de **Computación en la Nube 2026-2**. Es una mini nube local: una apl
 | [Parte A — Plataforma y orquestación](docs/parte-a/PLAN.md) | Cristhian |
 | [Parte B — DNS y experiencia de usuario](docs/parte-b/PLAN.md) | Daniel |
 | [Parte C — Plantilla Apache y publicación](docs/parte-c/PLAN.md) | Wiliam |
+| [Importar y verificar la VM `ns`](docs/IMPORTAR-NS.md) | Los tres, para probar la integración con el DNS |
 | [Reglas para asistentes de IA](AGENTS.md) | La IA de cada uno |
 | [Enunciado](docs/enunciado/) | Referencia |
 
