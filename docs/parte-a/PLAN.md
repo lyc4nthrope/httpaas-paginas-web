@@ -48,7 +48,7 @@ El "cerebro" de la nube: la webapp, la cola que crea, publica y elimina instanci
 📸 **A-01** — `make check` en verde. 📸 **A-02** — workflow en verde en GitHub.
 **Commit:** `chore: bootstrap go module, makefile and ci`
 
-### A1. Contrato común ⬜ (H0, con B y C presentes o revisando el PR)
+### A1. Contrato común ✅ (unido a `dev` en el PR #1, 2026-11-06)
 **Meta:** que los tres trabajen en paralelo sin VMs.
 1. `internal/dominio`: tipo `Instancia {Nombre, IP, Estado, Creada, Error string}`, constantes de `Estado` (§4.6 del plan), `ValidarHostname(s) error` (D10) y `FQDN(host, dominio)`.
 2. `internal/puertos`: las tres interfaces **exactamente** como en §4.2, más `fakes.go` (`FakeHipervisor`, `FakeDNS`, `FakePublicador`) que guardan las llamadas y aceptan un error programado por método.
@@ -57,7 +57,7 @@ El "cerebro" de la nube: la webapp, la cola que crea, publica y elimina instanci
 **Verificación:** `make check` en verde. PR a `dev` aprobado por Daniel y Wiliam.
 **Commit:** `feat(dominio): define instance model, hostname rules and service ports`
 
-### A2. Configuración, executor SSH y registro ⬜
+### A2. Configuración, executor SSH y registro ✅ (SSH real contra `ns` verificado el 2026-11-10)
 **Meta:** ejecutar comandos remotos sin interacción y dejar rastro de cada uno.
 1. `internal/config`: lee `config.json` (§4.5) y valida: IPs, rango `primera ≤ ultima`, que exista `disco_base`, que exista la llave y que `max_instancias ≥ 1`. Un error por campo.
 2. `internal/executor`: copiar `ssh.go`, `executor.go` y `fake.go` del Parcial 2 (`consola-automatizacion-servicios/internal/executor`). Ajustar las opciones de SSH: `-i <llave> -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=<known_hosts> -o ConnectTimeout=10`. Agregar `OlvidarHost(ip)` → `ssh-keygen -R <ip> -f <known_hosts>`.
@@ -120,7 +120,7 @@ El "cerebro" de la nube: la webapp, la cola que crea, publica y elimina instanci
 📸 **A-06** — `VBoxManage list vms` con la instancia creada. 📸 **A-07** — `VBoxManage showhdinfo` del disco base mostrando su hijo diferencial. 📸 **A-08** — después de eliminar: la VM no está y el `.vdi` base sí.
 **Commit:** `feat(vbox): create and delete instances from the multiattach disk`
 
-### A7. Integración en `dev` ⬜ (H3)
+### A7. Integración en `dev` ✅ código y pruebas contra `ns` (PR #6, 2026-11-10); falta la prueba con la plantilla real
 **Meta:** que funcione de punta a punta con las piezas reales de B y C.
 1. Unir los PR de B (`internal/dns`, dashboard) y C (`internal/publicar`) en `dev`, resolver conflictos y correr `make check`.
 2. `main.go` real: `vbox` + `dns` + `publicar`. Llamar a `Reconciliar()` al arrancar.
@@ -130,7 +130,7 @@ El "cerebro" de la nube: la webapp, la cola que crea, publica y elimina instanci
 📸 **A-09** — formulario con `paisajes` y `paisajes.zip`. 📸 **A-10** — dashboard con la instancia `lista` y su enlace.
 **Commit:** `feat: wire real adapters into the http service`
 
-### A8. Prueba completa y cierre ⬜ (H4)
+### A8. Prueba completa y cierre 🟡 script y README ✅ (17 OK en simulado); falta la ejecución real con la plantilla
 **Meta:** demostrar que todo funciona en los tres PCs.
 1. `scripts/prueba-completa.sh`: los 7 pasos del §10 del plan, con `curl` contra la webapp (incluye la cabecera `Origin`).
 2. Correrlo en los tres PCs y anotar el resultado en `docs/PRUEBA-COMPLETA.md`.
