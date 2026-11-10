@@ -142,6 +142,7 @@
       border-radius: 10px;
     }
     .fila input[type="text"]:hover { border-color: #a9b6cb; }
+    .fila input[type="text"][readonly] { color: var(--tenue); background: #f7f8fb; }
     .archivo {
       position: relative;
       display: flex;
@@ -191,6 +192,7 @@
       transition: background-color .15s ease;
     }
     button:active { transform: translateY(1px); }
+    button:disabled { cursor: progress; opacity: .6; }
     .primario { color: #fff; background: var(--marca); }
     .primario:hover { background: var(--marca-oscura); }
     .secundario { color: var(--marca-oscura); background: #eef2ff; border-color: #c7d2fe; }
