@@ -18,7 +18,12 @@ import (
 
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/almacen"
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/config"
+	"github.com/lyc4nthrope/httpaas-paginas-web/internal/dns"
+	"github.com/lyc4nthrope/httpaas-paginas-web/internal/executor"
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/instancias"
+	"github.com/lyc4nthrope/httpaas-paginas-web/internal/publicar"
+	"github.com/lyc4nthrope/httpaas-paginas-web/internal/puertos"
+	"github.com/lyc4nthrope/httpaas-paginas-web/internal/vbox"
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/web"
 )
 
@@ -69,27 +74,46 @@ func run(ctx context.Context, args []string) error {
 	return nil
 }
 
-// construir wires the service. Real adapters arrive in phase A7 (vbox from A6,
-// dns from B6, publicar from C7); until then only simulated mode runs.
+// construir wires the service: the real adapters (vbox, dns from part B, publicar from
+// part C) or, with simular, fakes that need no VM.
 func construir(ctx context.Context, cfg config.Config, simular bool) (http.Handler, <-chan struct{}, error) {
-	if !simular {
-		if err := cfg.VerificarArchivos(); err != nil {
-			return nil, nil, err
-		}
-		return nil, nil, errors.New("el modo real se conecta en la fase A7; por ahora usa -simular")
-	}
-
 	var rango []string
 	for n := cfg.Red.Primera; n <= cfg.Red.Ultima; n++ {
 		rango = append(rango, cfg.IP(n))
 	}
-	alm, err := almacen.Abrir("data/simulado.json", rango) // never mixed with the real store
+
+	var (
+		hip     puertos.Hipervisor
+		zona    puertos.DNS
+		pub     puertos.Publicador
+		olvidar func(context.Context, string) error
+		aviso   func() string
+		datos   = "data/simulado.json" // never mixed with the real store
+	)
+	if simular {
+		hip, zona, pub = simulados(2 * time.Second)
+	} else {
+		if err := cfg.VerificarArchivos(); err != nil {
+			return nil, nil, err
+		}
+		ssh := func(ip, usuario string) executor.Executor {
+			return &executor.SSH{Host: ip, User: usuario, KeyPath: cfg.SSH.Llave, KnownHosts: cfg.SSH.KnownHosts}
+		}
+		servidorDNS := dns.Nuevo(ssh(cfg.DNS.IP, cfg.DNS.Usuario), cfg)
+		hip = vbox.Nuevo(cfg)
+		zona = servidorDNS
+		pub = publicar.Nuevo(func(ip string) executor.Executor { return ssh(ip, cfg.SSH.Usuario) }, cfg.Dominio)
+		olvidar = func(ctx context.Context, ip string) error { return executor.OlvidarHost(ctx, cfg.SSH.KnownHosts, ip) }
+		aviso = vigilar(ctx, servidorDNS.Comprobar, 30*time.Second)
+		datos = cfg.Datos
+	}
+
+	alm, err := almacen.Abrir(datos, rango)
 	if err != nil {
 		return nil, nil, err
 	}
-	hip, dns, pub := simulados(2 * time.Second)
 	svc := instancias.Nuevo(instancias.Opciones{
-		Hipervisor: hip, DNS: dns, Publicador: pub, Almacen: alm,
+		Hipervisor: hip, DNS: zona, Publicador: pub, Almacen: alm, Olvidar: olvidar,
 		Max: cfg.MaxInstancias, Prefijo: cfg.Red.Prefijo,
 	})
 	if err := svc.Reconciliar(ctx); err != nil {
@@ -98,7 +122,7 @@ func construir(ctx context.Context, cfg config.Config, simular bool) (http.Handl
 	trabajador := svc.Iniciar(ctx)
 	return web.Nuevo(web.Opciones{
 		Servicio: svc, Dominio: cfg.Dominio, Prefijo: cfg.Red.Prefijo, MaxZipMB: cfg.MaxZipMB,
-		ValidarZip: validarZipBasico, Hosts: hostsPermitidos(cfg.Listen),
+		ValidarZip: publicar.ValidarZip, Hosts: hostsPermitidos(cfg.Listen), DNSAviso: aviso,
 	}), trabajador, nil
 }
 

@@ -43,7 +43,10 @@ type Opciones struct {
 	// Hosts are the exact Host values the app is served on (e.g. "127.0.0.1:8080").
 	// Any other Host is refused (DNS rebinding); an empty list refuses everything.
 	Hosts []string
-	Logf  func(format string, args ...any)
+	// DNSAviso returns the current problem with the ns VM, or "" when it answers
+	// (phase B6.5). nil means there is nothing to report.
+	DNSAviso func() string
+	Logf     func(format string, args ...any)
 }
 
 type servidor struct {
@@ -86,11 +89,15 @@ type Vista struct {
 	MaxZipMB     int
 	CampoNombre  string
 	CampoArchivo string
-	Refrescar    bool // some instance is busy
+	Refrescar    bool   // some instance is busy
+	DNSAviso     string // problem with the ns VM, with its recovery recipe (B6.5)
 }
 
 func (s *servidor) vista() Vista {
 	v := Vista{MaxZipMB: s.o.MaxZipMB, CampoNombre: dominio.CampoNombre, CampoArchivo: dominio.CampoArchivo}
+	if s.o.DNSAviso != nil {
+		v.DNSAviso = s.o.DNSAviso()
+	}
 	for _, i := range s.o.Servicio.Listar() {
 		f := s.fila(i)
 		v.Refrescar = v.Refrescar || f.Ocupada
