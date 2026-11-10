@@ -20,7 +20,8 @@ Reglas obligatorias:
 - La zona es dinámica: update-policy local; archivos en /var/lib/bind/; NUNCA editar la zona a mano con named
   encendido (usar rndc freeze/thaw). Siempre named-checkconf y named-checkzone antes de recargar.
 - El script httpaas-dns valida host (^[a-z][a-z0-9-]{1,30}[a-z0-9]$) e IP (192.168.10.N) antes de usarlos.
-  Los datos nunca se interpolan sin validar.
+  Rechaza además las IPs reservadas de infraestructura (.1 host, .10 DNS, .20 plantilla): sobre .10 borraría
+  el PTR `10 PTR ns.cloud.local.` de la zona inversa. Los datos nunca se interpolan sin validar.
 - En Go: implementa la interfaz puertos.DNS EXACTAMENTE como en docs/PLAN.md §4.2. Comandos remotos solo a
   través de executor.Executor con argumentos separados. Funciones puras con pruebas de tabla; Fakes para el resto.
 - El contrato de docs/PLAN.md §4 NO se cambia sin acuerdo del equipo.
@@ -39,10 +40,10 @@ El servidor DNS que da nombre a cada instancia, la pieza de Go que lo actualiza,
 
 ## Fases
 
-### B0. Preparación ⬜ (H0)
+### B0. Preparación ✅ 2026-11-07 (H0)
 Hacer P1–P4 del [plan general §7](../PLAN.md#7-preparación-de-cada-pc-los-tres-h0). Revisar y aprobar el PR del contrato (A1).
 
-### B1. VM `ns` ⬜ (H1)
+### B1. VM `ns` ✅ 2026-11-07 (H1)
 **Meta:** una VM Debian 13 sin interfaz gráfica, con IP fija 192.168.10.10 y acceso por SSH con llaves.
 1. VM `ns`: 1 CPU, 512 MB, disco de 8 GB, BIOS. `nic1` host-only `vboxnet0`, `nic2` NAT. Instalar Debian 13 sin entorno gráfico, con "SSH server" y "standard system utilities".
 2. Comprobar el nombre de las interfaces con `ip -br link`: normalmente `enp0s3` es host-only y `enp0s8` es NAT.
@@ -57,7 +58,7 @@ Hacer P1–P4 del [plan general §7](../PLAN.md#7-preparación-de-cada-pc-los-tr
 📸 **B-01** — `ip -br addr` en `ns`. 📸 **B-02** — SSH desde el host sin contraseña.
 **Commit:** `docs(ns): record base vm setup` (con los pasos en `deploy/ns/README.md`)
 
-### B2. Zona `cloud.local` estática ⬜ (H1)
+### B2. Zona `cloud.local` estática ✅ 2026-11-08 (H1)
 > **Alcance:** el enunciado y la figura solo piden registros **A** en `cloud.local`. La zona **inversa** (PTR) es un extra: cuesta poco y permite `dig -x`. Si da problemas, se quita sin afectar el parcial.
 **Meta:** que Bind9 responda por la zona y por la inversa.
 1. `deploy/ns/named.conf.options`: `listen-on { 127.0.0.1; 192.168.10.10; };`, `allow-query { localhost; 192.168.10.0/24; };`, `recursion yes;`, `allow-recursion { localhost; 192.168.10.0/24; };`, `forwarders { 1.1.1.1; 8.8.8.8; };`, `dnssec-validation auto;`.
@@ -73,9 +74,9 @@ Hacer P1–P4 del [plan general §7](../PLAN.md#7-preparación-de-cada-pc-los-tr
 📸 **B-03** — `named-checkconf` y `named-checkzone` sin errores. 📸 **B-04** — los tres `dig`.
 **Commit:** `feat(ns): serve cloud.local and its reverse zone`
 
-### B3. Actualización dinámica con `httpaas-dns` ⬜ (H1)
+### B3. Actualización dinámica con `httpaas-dns` ✅ 2026-11-09 (H1)
 **Meta:** registrar y quitar hosts con un solo comando, que es lo que llamará la webapp.
-1. `deploy/ns/httpaas-dns` (bash, `set -euo pipefail`). Valida el host con `^[a-z][a-z0-9-]{1,30}[a-z0-9]$` y la IP con `^192\.168\.10\.([1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-4])$`. Rechaza `ns`.
+1. `deploy/ns/httpaas-dns` (bash, `set -euo pipefail`). Valida el host con `^[a-z][a-z0-9-]{1,30}[a-z0-9]$` y la IP con `^192\.168\.10\.([1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-4])$`. Rechaza `ns` y las IPs reservadas `192.168.10.1`, `192.168.10.10` y `192.168.10.20`.
    - `agregar H IP`: una sola llamada a `nsupdate -l` con **dos bloques, uno por zona, cada uno con su propio `send`**. Un mensaje de actualización solo puede tocar una zona; si se mezclan, `nsupdate` falla con `NOTZONE`. `N` es el último octeto de la IP:
      ```
      zone cloud.local
@@ -100,19 +101,19 @@ dig @192.168.10.10 prueba.cloud.local +short                              # 192.
 dig @192.168.10.10 -x 192.168.10.99 +short                                # prueba.cloud.local.
 ssh httpaas@192.168.10.10 sudo httpaas-dns agregar 'x;id' 192.168.10.99   # rechazado, código ≠ 0
 ssh httpaas@192.168.10.10 sudo httpaas-dns quitar prueba && dig @192.168.10.10 prueba.cloud.local +short   # vacío
-ssh httpaas@192.168.10.10 sudo cat /etc/shadow                            # rechazado por sudo
+ssh httpaas@192.168.10.10 sudo -n cat /etc/shadow                         # rechazado por sudo
 ```
 📸 **B-05** — agregar + `dig`. 📸 **B-06** — rechazo del nombre malicioso y de `sudo cat`. 📸 **B-07** — archivo `.jnl` en `/var/lib/bind/` (prueba de que la actualización fue dinámica).
 **Commit:** `feat(ns): add httpaas-dns for dynamic a and ptr records`
 
-### B4. Exportar `ns` para el equipo ⬜ (H2)
+### B4. Exportar `ns` para el equipo ✅ 2026-11-09 (H2)
 `VBoxManage export ns -o ns.ova` y subirlo a la carpeta compartida del equipo (no al repositorio). A y C lo importan con `VBoxManage import ns.ova`.
-**Verificación:** A o C confirman B3 desde su PC.
+**Verificación:** A o C confirman B3 desde su PC. ✅ Cristhian importó `ns.ova` en su PC con `scripts/importar-ns.sh` y `scripts/verificar-ns.sh` pasó los chequeos de B1–B3 (PR #4).
 
-### B5. Resolver `*.cloud.local` desde el host ⬜ (H2)
+### B5. Resolver `*.cloud.local` desde el host ✅ 2026-11-09 (H2)
 **Meta:** que el navegador abra `http://paisajes.cloud.local`.
 1. **Linux:**
-   - `/etc/nsswitch.conf`, línea `hosts:` → `files myhostname dns mdns4_minimal [NOTFOUND=return]` (`dns` antes de mDNS; ver §1 del plan general).
+   - `/etc/nsswitch.conf`, línea `hosts:` → `dns` **antes** de `mdns4_minimal` (`[NOTFOUND=return]` corta la búsqueda de `.local`; ver §1 del plan general). El script preserva los demás módulos de la línea y solo reubica `dns`.
    - Si `systemctl is-active systemd-resolved` está activo: `resolvectl dns vboxnet0 192.168.10.10` y `resolvectl domain vboxnet0 '~cloud.local'` (DNS dividido: solo `cloud.local` va a `ns`).
    - Si no: agregar `nameserver 192.168.10.10` como **primera** línea de `/etc/resolv.conf`. `ns` también resuelve internet por la recursión de B2.
    - Todo esto en `scripts/dns-host-linux.sh` (idempotente; pide `sudo`).
@@ -124,7 +125,7 @@ ssh httpaas@192.168.10.10 sudo cat /etc/shadow                            # rech
 📸 **B-08** — `getent`/`Resolve-DnsName` y `ping` desde el host.
 **Commit:** `feat(scripts): resolve cloud.local from the host`
 
-### B6. Adaptador Go `internal/dns` ⬜ (H2)
+### B6. Adaptador Go `internal/dns` ✅ 2026-11-09 (H2)
 **Meta:** que la webapp maneje el DNS a través de la interfaz `puertos.DNS`.
 1. `Nuevo(ex executor.Executor, cfg)`.
 2. `Agregar(host, ip)` → `ex.Run(Command{Name:"sudo", Args:["/usr/local/sbin/httpaas-dns","agregar",host,ip]})`. `Quitar` es igual. Antes de ejecutar, valida con `dominio.ValidarHostname` y con la IP dentro del rango.
@@ -134,7 +135,31 @@ ssh httpaas@192.168.10.10 sudo cat /etc/shadow                            # rech
 **Verificación:** `make check` y `make vm-test` en verde.
 **Commit:** `feat(dns): implement dns port over ssh and httpaas-dns`
 
-### B7. Dashboard ⬜ (H3)
+### B6.5 Validación de la VM `ns` 🟡 (H2)
+> **Estado 2026-11-09:** `Comprobar` y sus pruebas están hechos (`60d11a4`); `TestVMComprobar` pasa contra `ns`. Falta solo el banner B-12, que necesita `web.Vista` (A) y el cableado de A7.
+**Meta:** detectar si `ns` responde **antes** de que el usuario cree una VM que fallará un minuto después en el paso DNS, con un mensaje accionable en vez de un `error` a medias.
+1. En `internal/dns`, método `Comprobar(ctx) error` sobre el tipo concreto — **no se añade a `puertos.DNS`**, así que el contrato §4.2 no cambia y no hace falta acuerdo del equipo. Reutiliza lo de B6:
+   - `Resolver(ctx, "ns")` debe devolver exactamente `cfg.DNS.IP`. Se pasa el label, no el FQDN, porque `Resolver` agrega el dominio (decisión de B6).
+   - No responde (timeout/conexión rechazada) o devuelve otra IP → error con la receta de recuperación incrustada:
+     > `no se contacta la VM DNS en 192.168.10.10. Si la VM ns no existe: VBoxManage import ns.ova (B4) o créala con deploy/ns/instalar.sh (B1–B3)`
+   - Una sola consulta cubre los tres fallos: VM apagada, `named` caído, zona rota o sin el registro estático `ns → .10`.
+   - Opcional: sonda profunda `ex.Run(sudo httpaas-dns listar)` para detectar SSH/sudo/`httpaas-dns` rotos (solo avisa, no bloquea).
+2. Pruebas de tabla con `executor.Fake`: OK · caído · IP incorrecta.
+3. **Coordinación con A (se engancha en A7).** Contrato mínimo, sin tocar §4.2:
+   - `web.Opciones` gana `DNSAviso string`. En `main.go`, después de `Reconciliar()`, si
+     `dns.Comprobar(ctx)` falla, se llena con `err.Error()` (el mensaje ya trae la receta).
+   - `web.Vista` gana `DNSAviso string`; `vista()` lo copia de `Opciones`.
+   - `dashboard.html` (B) lo muestra con `{{with .DNSAviso}}<p class="error" role="alert">{{.}}</p>{{end}}`.
+   En modo `-simular` no se construye el adaptador real, así que el campo queda vacío y no aparece el banner.
+4. **No se crea ni auto-repara la VM** — la receta queda en el mensaje. D14: el script es reconstrucción para humanos, no runtime del producto.
+
+**Verificación:** `make check`. Prueba `vm`: `ns` encendida → `Comprobar` = nil; `VBoxManage controlvm ns poweroff` → error con el mensaje exacto; `startvm` de nuevo → nil.
+📸 **B-12** — banner con `ns` apagada (y una celda más en la tabla de capturas del §9 del plan general: `B-09 … B-12`).
+**Commit:** `feat(dns): check the ns vm before using it`
+
+### B7. Dashboard ✅ 2026-11-09 (H3)
+> **Decisiones:** los estilos van inline en `dashboard.html` porque `web.go` solo embebe `templates/*.html` y `static/` no existe; moverlos a `static/estilos.css` exigiría un cambio de A. Se mantiene el `<meta refresh>` de 3 s en vez del polling a `/api/instancias`, que el plan dejaba como opcional.
+> **Mejora progresiva:** con JavaScript, **Publicar** crea la instancia si no existe, espera a `lista` y luego sube el zip; sin JavaScript quedan los dos botones de este plan. La versión que no depende del navegador está planteada como M3 en `docs/problemas.md`.
 **Meta:** la pantalla de la figura del profesor (página 11 de `Imagenes_enunciado_parcial3.pdf`).
 1. `internal/web/templates/dashboard.html` (`html/template`, con escape automático):
    - Título "Gestión de páginas y aplicaciones web".
@@ -150,7 +175,8 @@ ssh httpaas@192.168.10.10 sudo cat /etc/shadow                            # rech
 📸 **B-09** — dashboard vacío. 📸 **B-10** — dos instancias, como en la figura. 📸 **B-11** — vista en el ancho de un celular.
 **Commit:** `feat(web): build the instances dashboard`
 
-### B8. Documento final ⬜ (H5)
+### B8. Documento final 🟡 (H5)
+> **Estado 2026-11-09:** `docs/DOCUMENTO.md` tiene la estructura completa, la Parte B desarrollada (B0–B7, con problemas y decisiones) y los huecos marcados para A y C. Faltan sus secciones, las capturas y el banner B-12 (A7).
 **Meta:** el documento que pide el enunciado, con todo el equipo.
 1. `docs/DOCUMENTO.md`, que se exporta a PDF. Estructura: portada → introducción y objetivos → arquitectura (diagrama de C) → secciones 2 a 5 según la tabla del §9 del plan general, con las capturas en orden → problemas encontrados, mejoras y trabajo futuro (desde `docs/problemas.md`) → conocimientos aprendidos (un párrafo de cada uno) → uso de IA → referencias.
 2. Pedir a A y a C su sección en H4. Cada captura lleva un pie que dice qué se ve y por qué importa.

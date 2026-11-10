@@ -1,0 +1,10 @@
+$TTL 300
+@	IN	SOA	ns.cloud.local. admin.cloud.local. (
+			2026110701	; serial
+			3600		; refresh
+			900		; retry
+			604800		; expire
+			300		; minimum
+			)
+@	IN	NS	ns.cloud.local.
+10	IN	PTR	ns.cloud.local.
