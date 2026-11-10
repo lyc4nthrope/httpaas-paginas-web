@@ -159,6 +159,7 @@ ssh httpaas@192.168.10.10 sudo -n cat /etc/shadow                         # rech
 
 ### B7. Dashboard ✅ 2026-11-09 (H3)
 > **Decisiones:** los estilos van inline en `dashboard.html` porque `web.go` solo embebe `templates/*.html` y `static/` no existe; moverlos a `static/estilos.css` exigiría un cambio de A. Se mantiene el `<meta refresh>` de 3 s en vez del polling a `/api/instancias`, que el plan dejaba como opcional.
+> **Mejora progresiva:** con JavaScript, **Publicar** crea la instancia si no existe, espera a `lista` y luego sube el zip; sin JavaScript quedan los dos botones de este plan. La versión que no depende del navegador está planteada como M3 en `docs/problemas.md`.
 **Meta:** la pantalla de la figura del profesor (página 11 de `Imagenes_enunciado_parcial3.pdf`).
 1. `internal/web/templates/dashboard.html` (`html/template`, con escape automático):
    - Título "Gestión de páginas y aplicaciones web".

@@ -652,6 +652,13 @@ instancias con su estado. Part B reescribe la plantilla provisional de A5.
 6. **Diálogo de eliminación:** `<dialog>` nativo con el nombre de la instancia y
    los botones Cancelar/Eliminar. Si el navegador no soporta `showModal()`, queda
    el `confirm()` del atributo `onsubmit` como respaldo.
+7. **Publicar inteligente (mejora progresiva):** con JavaScript, el botón
+   Publicar crea la instancia si no existe, espera a que esté `lista` sondeando
+   `/api/instancias` y recién entonces sube el zip. Sin JavaScript, el formulario
+   sigue funcionando con los dos botones del plan. La pestaña debe quedar abierta
+   durante el proceso (~1 min en real); si se cierra, la instancia queda creada
+   pero sin contenido. La versión robusta está planteada como M3 en
+   `docs/problemas.md`.
 
 ### Verificación (modo simulado, binario real)
 
@@ -676,6 +683,16 @@ La vista se comprobó a **360 px reales** con el protocolo de DevTools
 unos 500 px, así que una captura con `--window-size=360` sale recortada y no
 sirve para validar el layout móvil.
 
+Publicar sin crear antes (solo nombre + zip), con el archivo real:
+
+```text
+secuencia de estados: creando -> publicando -> lista
+final:                paisajes / lista
+```
+
+Con un nombre inválido (`Paisajes`) el aviso de validación aparece en la vista y
+no se crea ninguna instancia.
+
 ### Decisiones
 
 - **Estilos inline, no `static/estilos.css`.** `web.go` solo embebe
@@ -684,6 +701,11 @@ sirve para validar el layout móvil.
 - **`<meta refresh>` en vez de `static/app.js`.** El plan lo dejaba como opcional.
   `GET /api/instancias` ya existe, pero el refresco completo es suficiente y evita
   otro archivo estático.
+- **Publicar inteligente como mejora progresiva.** No cambia las rutas de A ni la
+  figura: los dos botones siguen ahí y sin JavaScript todo funciona igual. La
+  orquestación (crear → esperar `lista` → publicar) vive en el navegador porque el
+  servidor no tiene una operación combinada; el cambio de servidor está en M3 de
+  `docs/problemas.md`.
 
 ### Pendiente
 
