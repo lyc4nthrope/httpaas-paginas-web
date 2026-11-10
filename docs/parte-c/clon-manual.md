@@ -45,3 +45,6 @@ VBoxManage guestproperty get "<NAME>" /httpaas/estado
 ### 8. Apagar y Destruir Instancia (Sin afectar el disco base multiattach)
 VBoxManage controlvm "<NAME>" poweroff
 VBoxManage unregistervm "<NAME>" --delete
+## Antes de clonar: el disco base en multiconexión
+
+`VBoxManage modifymedium disk ApacheServer.vdi --type multiattach` falla si el disco está suelto (*"can only be used on media registered with a machine"*). Primero hay que registrarlo en una VM: se conecta a `apache-plantilla`, se desconecta, y entonces sí se cambia el tipo. Los comandos están en [ACTUALIZAR-PLANTILLA.md](ACTUALIZAR-PLANTILLA.md), paso 5. Comprobado el 2026-11-10: con el disco así, cada clon recibe su propio diferencial, y `unregistervm --delete` borra solo ese diferencial; el disco base queda intacto.
