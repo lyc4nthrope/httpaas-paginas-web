@@ -83,6 +83,8 @@ fi
 # (After=vboxadd-service.service, so Guest Additions are up before it reads properties).
 install -o root -g root -m 0644 "$DIR/httpaas-firstboot.service" /etc/systemd/system/httpaas-firstboot.service
 systemctl daemon-reload
+# A masked unit cannot be enabled (and never runs): undo a `systemctl mask` left from testing.
+systemctl unmask httpaas-firstboot.service
 systemctl enable httpaas-firstboot.service
 
 echo "Instalacion de la plantilla HTTPaaS completada con exito."
