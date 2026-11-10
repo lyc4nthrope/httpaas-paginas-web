@@ -145,14 +145,20 @@ ssh httpaas@192.168.10.10 sudo -n cat /etc/shadow                         # rech
    - Una sola consulta cubre los tres fallos: VM apagada, `named` caído, zona rota o sin el registro estático `ns → .10`.
    - Opcional: sonda profunda `ex.Run(sudo httpaas-dns listar)` para detectar SSH/sudo/`httpaas-dns` rotos (solo avisa, no bloquea).
 2. Pruebas de tabla con `executor.Fake`: OK · caído · IP incorrecta.
-3. **Coordinación con A (se engancha en A7):** `main.go` llama a `Comprobar` tras `Reconciliar()` y pasa el resultado a `web.Vista`; B pone el banner en `dashboard.html`. Opción para A: llamarlo también en `SolicitarCrear` para fallar con 422 antes de crear la VM. En modo `-simular` no se construye el adaptador real → sin banner, automáticamente.
+3. **Coordinación con A (se engancha en A7).** Contrato mínimo, sin tocar §4.2:
+   - `web.Opciones` gana `DNSAviso string`. En `main.go`, después de `Reconciliar()`, si
+     `dns.Comprobar(ctx)` falla, se llena con `err.Error()` (el mensaje ya trae la receta).
+   - `web.Vista` gana `DNSAviso string`; `vista()` lo copia de `Opciones`.
+   - `dashboard.html` (B) lo muestra con `{{with .DNSAviso}}<p class="error" role="alert">{{.}}</p>{{end}}`.
+   En modo `-simular` no se construye el adaptador real, así que el campo queda vacío y no aparece el banner.
 4. **No se crea ni auto-repara la VM** — la receta queda en el mensaje. D14: el script es reconstrucción para humanos, no runtime del producto.
 
 **Verificación:** `make check`. Prueba `vm`: `ns` encendida → `Comprobar` = nil; `VBoxManage controlvm ns poweroff` → error con el mensaje exacto; `startvm` de nuevo → nil.
 📸 **B-12** — banner con `ns` apagada (y una celda más en la tabla de capturas del §9 del plan general: `B-09 … B-12`).
 **Commit:** `feat(dns): check the ns vm before using it`
 
-### B7. Dashboard ⬜ (H3)
+### B7. Dashboard ✅ 2026-11-09 (H3)
+> **Decisiones:** los estilos van inline en `dashboard.html` porque `web.go` solo embebe `templates/*.html` y `static/` no existe; moverlos a `static/estilos.css` exigiría un cambio de A. Se mantiene el `<meta refresh>` de 3 s en vez del polling a `/api/instancias`, que el plan dejaba como opcional.
 **Meta:** la pantalla de la figura del profesor (página 11 de `Imagenes_enunciado_parcial3.pdf`).
 1. `internal/web/templates/dashboard.html` (`html/template`, con escape automático):
    - Título "Gestión de páginas y aplicaciones web".
