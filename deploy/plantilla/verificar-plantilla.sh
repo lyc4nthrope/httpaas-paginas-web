@@ -31,6 +31,7 @@ P=/usr/local/sbin/httpaas-publicar
 de_root_sin_escritura_ajena "$P"; verificar "$P es de root y nadie más puede modificarlo" $?
 cmp -s "$P" "$DIR/httpaas-publicar"; verificar "$P es igual al del repositorio" $?
 [ ! -e /usr/local/sbin/httpaas-firstboot ]; verificar "No hay un httpaas-firstboot viejo en /usr/local/sbin" $?
+bash -n "$F" 2>/dev/null && bash -n "$P" 2>/dev/null; verificar "Los dos scripts no tienen errores de sintaxis (bash -n)" $?
 
 echo "== Arranque"
 systemctl is-enabled --quiet httpaas-firstboot.service; verificar "httpaas-firstboot.service está habilitado" $?
@@ -61,6 +62,8 @@ systemctl is-enabled --quiet apache2; verificar "apache2 está habilitado" $?
 command -v unzip >/dev/null; verificar "unzip instalado" $?
 [ -f /etc/httpaas/vhost.conf.tmpl ]; verificar "Existe /etc/httpaas/vhost.conf.tmpl" $?
 [ ! -e /etc/httpaas/aplicado ]; verificar "No existe /etc/httpaas/aplicado (C5.2)" $?
+sitios=$(ls /etc/apache2/sites-enabled 2>/dev/null | grep -v -x '000-default.conf')
+[ -z "$sitios" ]; verificar "Apache sin sitios de instancias habilitados (quedaron: ${sitios//$'\n'/ })" $?
 [ "$(hostname)" = apache-plantilla ]; verificar "El hostname es apache-plantilla" $?
 
 echo

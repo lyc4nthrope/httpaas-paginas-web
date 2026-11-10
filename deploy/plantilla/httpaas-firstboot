@@ -37,7 +37,14 @@ DNS_PROP=$(get_prop "/httpaas/dns")
 # Validaciones estrictas (Hostname D10: inicia con letra minúscula, IP 192.168.10.N/24 (1-254), FQDN dominio y DNS IPv4)
 VALID=1
 if ! [[ "$HOSTNAME_PROP" =~ ^[a-z][a-z0-9-]{0,61}[a-z0-9]$ ]]; then VALID=0; fi
-if ! [[ "$IP_PROP" =~ ^192\.168\.10\.(25[0-4]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]?)/24$ ]]; then VALID=0; fi
+# The host number is saved right here: BASH_REMATCH holds the LAST =~ match, and the DNS
+# check below would replace it (IP_NUM was 192, the DNS's first octet, on every clone).
+IP_NUM=""
+if [[ "$IP_PROP" =~ ^192\.168\.10\.(25[0-4]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]?)/24$ ]]; then
+    IP_NUM="${BASH_REMATCH[1]}"
+else
+    VALID=0
+fi
 if ! [[ "$DOMAIN_PROP" =~ ^[a-zA-Z0-9]+([\.-][a-zA-Z0-9]+)*\.[a-zA-Z]{2,}$ ]]; then VALID=0; fi
 if ! [[ "$DNS_PROP" =~ ^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}$ ]]; then VALID=0; fi
 
@@ -45,8 +52,6 @@ if [ $VALID -eq 0 ]; then
     set_prop "/httpaas/estado" "error:datos-invalidos"
     exit 1
 fi
-
-IP_NUM="${BASH_REMATCH[1]}"
 
 # Verificar si ya fue aplicado en este host previamente (reinicio estándar)
 if [ -f /etc/httpaas/aplicado ]; then
@@ -117,4 +122,4 @@ sshd -t
 systemctl restart ssh
 
 echo "$HOSTNAME_PROP $IP_PROP" > /etc/httpaas/aplicado
-set_prop "/httpaas/estado" "listo"o"
+set_prop "/httpaas/estado" "listo"
