@@ -645,7 +645,9 @@ instancias con su estado. Part B reescribe la plantilla provisional de A5.
    Eliminar con `confirm()`, estado vacío y mensajes flash.
 5. **Rediseño visual:** descripción de qué hace la página, tira de tres pasos,
    tarjetas con sombra, píldoras de estado con color y texto, tabla con hover,
-   contador de instancias y foco visible. Los estilos siguen inline.
+   contador de instancias, foco visible y selector de archivo propio (label +
+   nombre del archivo) para que el texto nativo no ensanche la página. Los
+   estilos siguen inline.
 
 ### Verificación (modo simulado, binario real)
 
@@ -664,6 +666,11 @@ Con dos instancias (`paisajes` `.30`, `negocios` `.31`): 2 filas, 2 badges
 con el flash `Instancia negocios en creación`.
 
 `go test ./internal/web/` en verde; `gofmt`, `go vet` y `go build` limpios.
+
+La vista se comprobó a **360 px reales** con el protocolo de DevTools
+(`Emulation.setDeviceMetricsOverride`). El headless de Edge clampa la ventana a
+unos 500 px, así que una captura con `--window-size=360` sale recortada y no
+sirve para validar el layout móvil.
 
 ### Decisiones
 

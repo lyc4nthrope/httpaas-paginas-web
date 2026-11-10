@@ -109,19 +109,19 @@
 
     .panel {
       display: grid;
-      gap: 20px;
-      max-width: 720px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
       padding: 22px;
       background: var(--superficie);
       border: 1px solid var(--linea);
       border-radius: var(--radio);
       box-shadow: var(--sombra);
     }
-    .campo { display: grid; gap: 6px; }
+    .campo { display: grid; gap: 6px; min-width: 0; }
     .campo-titulo { display: flex; gap: 8px; align-items: center; font-weight: 650; }
     .campo-titulo label { cursor: pointer; }
     .ayuda { margin: 0; font-size: .88rem; color: var(--tenue); }
-    .fila { display: flex; gap: 8px; }
+    .fila { display: flex; gap: 8px; min-width: 0; }
     .fila input[type="text"] {
       flex: 1 1 auto;
       min-width: 0;
@@ -133,27 +133,44 @@
       border-radius: 10px;
     }
     .fila input[type="text"]:hover { border-color: #a9b6cb; }
-    .fila input[type="file"] {
+    .archivo {
+      position: relative;
+      display: flex;
       flex: 1 1 auto;
+      gap: 10px;
+      align-items: center;
       min-width: 0;
-      padding: 7px;
-      font: inherit;
-      color: var(--tenue);
+      padding: 6px 10px;
       background: #fff;
       border: 1px dashed #c7d0e0;
       border-radius: 10px;
     }
-    .fila input[type="file"]::file-selector-button {
-      margin-right: 10px;
-      padding: 8px 12px;
-      font: inherit;
-      color: var(--tinta);
+    .archivo:focus-within { outline: 3px solid #f2a900; outline-offset: 2px; }
+    .archivo input[type="file"] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .boton-archivo {
+      flex: 0 0 auto;
+      padding: 6px 10px;
+      font-weight: 600;
       background: #eef2f8;
-      border: 0;
       border-radius: 8px;
       cursor: pointer;
     }
-    .fila input[type="file"]::file-selector-button:hover { background: #e2e8f2; }
+    .boton-archivo:hover { background: #e2e8f2; }
+    .nombre-archivo {
+      min-width: 0;
+      overflow: hidden;
+      font-size: .9rem;
+      color: var(--tenue);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
 
     button {
       padding: 10px 16px;
@@ -206,13 +223,13 @@
       background: #fafbfe;
       border-bottom: 1px solid var(--linea);
     }
-    td { padding: 12px 14px; vertical-align: middle; border-bottom: 1px solid var(--linea); }
+    td { padding: 12px 14px; vertical-align: middle; border-bottom: 1px solid var(--linea); overflow-wrap: anywhere; }
     tbody tr:last-child td { border-bottom: 0; }
     tbody tr:hover { background: #fafbff; }
     a { color: var(--marca); text-decoration: none; }
     a:hover { text-decoration: underline; }
-    .enlace { display: inline-flex; gap: 4px; align-items: center; font-weight: 600; }
-    .enlace::after { content: "↗"; font-size: .9em; }
+    .enlace { font-weight: 600; overflow-wrap: anywhere; }
+    .enlace::after { content: " ↗"; font-size: .9em; }
     .ip { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92rem; }
 
     .estado {
@@ -257,8 +274,9 @@
       .envoltura { padding: 20px 14px 36px; }
       .cabecera { flex-direction: column; gap: 12px; }
       .pasos { grid-template-columns: 1fr; }
-      .panel { padding: 18px; }
+      .panel { grid-template-columns: minmax(0, 1fr); padding: 18px; }
       .fila { flex-direction: column; }
+      .fila input { width: 100%; }
       .fila button { width: 100%; }
     }
 
@@ -334,7 +352,11 @@
           en la raíz o dentro de una sola carpeta. Máximo {{.MaxZipMB}} MB.
         </p>
         <div class="fila">
-          <input id="archivo" type="file" name="{{.CampoArchivo}}" accept=".zip">
+          <div class="archivo">
+            <input id="archivo" type="file" name="{{.CampoArchivo}}" accept=".zip">
+            <label for="archivo" class="boton-archivo">Elegir archivo</label>
+            <span id="nombre-archivo" class="nombre-archivo">Sin archivo</span>
+          </div>
           <button type="submit" class="secundario" formaction="/contenido">Publicar</button>
         </div>
         {{with index .Errores .CampoArchivo}}<p class="error" role="alert">{{.}}</p>{{end}}
@@ -393,5 +415,18 @@
 
     <footer class="pie">HTTPaaS · Parcial 3 · Computación en la Nube</footer>
   </div>
+
+  <script>
+    (function () {
+      var entrada = document.getElementById("archivo");
+      var nombre = document.getElementById("nombre-archivo");
+      if (!entrada || !nombre) return;
+      entrada.addEventListener("change", function () {
+        nombre.textContent = entrada.files && entrada.files.length
+          ? entrada.files[0].name
+          : "Sin archivo";
+      });
+    })();
+  </script>
 </body>
 </html>
