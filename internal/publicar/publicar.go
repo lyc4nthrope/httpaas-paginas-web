@@ -1,78 +1,122 @@
 package publicar
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/lyc4nthrope/httpaas-paginas-web/internal/dominio"
+	"github.com/lyc4nthrope/httpaas-paginas-web/internal/executor"
+	"github.com/lyc4nthrope/httpaas-paginas-web/internal/puertos"
 )
 
-type Executor interface {
-	CopyTo(srcLocal, dstRemote string) error
-	Run(cmd string) (exitCode int, stdout string, stderr string, err error)
-}
+const (
+	tiempoMaximo = 5 * time.Minute
+	script       = "/usr/local/sbin/httpaas-publicar"
+	subidas      = "/home/httpaas/subidas/" // the only folder httpaas-publicar reads from
+)
 
+// Publicador implements puertos.Publicador over SSH.
 type Publicador struct {
-	Exec Executor
+	conectar  func(ip string) executor.Executor // one executor per instance IP
+	dominio   string
+	comprobar func(ctx context.Context, ip, host string) error // replaceable in tests
 }
 
-func NewPublicador(exec Executor) *Publicador {
-	return &Publicador{Exec: exec}
+var _ puertos.Publicador = (*Publicador)(nil)
+
+// Nuevo builds the publisher. conectar returns the executor that reaches an instance, for
+// example an executor.SSH with that IP; dominio is cfg.Dominio (e.g. cloud.local).
+func Nuevo(conectar func(ip string) executor.Executor, dominio string) *Publicador {
+	return &Publicador{conectar: conectar, dominio: dominio, comprobar: comprobarSitio}
 }
 
-func (p *Publicador) Publicar(host, ip, zipPath string) error {
-	bytes := make([]byte, 8)
-	if _, err := rand.Read(bytes); err != nil {
-		return fmt.Errorf("error al generar id aleatorio: %w", err)
+// Publicar copies an already validated zip to the instance, runs httpaas-publicar and
+// checks that Apache serves the site under its own name.
+func (p *Publicador) Publicar(ctx context.Context, host, ip, zipLocal string) error {
+	if err := dominio.ValidarHostname(host); err != nil {
+		return fmt.Errorf("publish: invalid host: %w", err)
 	}
-	id := hex.EncodeToString(bytes)
-	destRemote := fmt.Sprintf("/home/httpaas/subidas/%s.zip", id)
-
-	if err := p.Exec.CopyTo(zipPath, destRemote); err != nil {
-		return fmt.Errorf("error al copiar zip a la vm: %w", err)
+	if net.ParseIP(ip).To4() == nil {
+		return fmt.Errorf("publish: invalid instance ip %q", ip)
 	}
-
-	cmd := fmt.Sprintf("sudo /usr/local/sbin/httpaas-publicar %s", destRemote)
-	exitCode, stdout, stderr, err := p.Exec.Run(cmd)
-	if err != nil && exitCode == 0 {
-		return fmt.Errorf("error de ejecucion remota: %w", err)
+	id, err := idAleatorio()
+	if err != nil {
+		return err
 	}
+	remoto := subidas + id + ".zip"
+	ex := p.conectar(ip)
+	// Copying up to 200 MB, unzipping and reloading Apache must end even when the caller
+	// gives no deadline: the single job queue cannot wait forever.
+	ctx, cancel := context.WithTimeout(ctx, tiempoMaximo)
+	defer cancel()
 
-	switch exitCode {
+	if err := ex.CopyTo(ctx, zipLocal, remoto); err != nil {
+		return err // a *executor.ChannelError stays as it is
+	}
+	res, err := ex.Run(ctx, executor.Command{Name: "sudo", Args: []string{script, remoto}})
+	if err != nil {
+		return err
+	}
+	detalle := strings.TrimSpace(res.Stderr)
+	switch res.ExitCode {
 	case 0:
-	// Exito
-	case 2:
-		return fmt.Errorf("error de validacion en VM (codigo 2): %s %s", stdout, stderr)
+	case 2: // the VM rejected the zip: the user can fix it
+		return &dominio.ErrorValidacion{Campo: dominio.CampoArchivo, Mensaje: "la instancia rechazó el zip: " + mensajeCorto(detalle)}
 	case 3:
-		return fmt.Errorf("error interno de servidor en VM (codigo 3): %s %s", stdout, stderr)
+		return fmt.Errorf("la instancia no pudo publicar (Apache o primer arranque): %s", mensajeCorto(detalle))
 	default:
-		return fmt.Errorf("error desconocido en VM (codigo %d): %s %s", exitCode, stdout, stderr)
+		return fmt.Errorf("httpaas-publicar terminó con código %d: %s", res.ExitCode, mensajeCorto(detalle))
 	}
 
-	reqURL := fmt.Sprintf("http://%s/", ip)
-	req, err := http.NewRequest("GET", reqURL, nil)
+	return p.comprobar(ctx, ip, dominio.FQDN(host, p.dominio))
+}
+
+// comprobarSitio asks Apache for the site with the instance's name as Host and accepts
+// only 200. It never uses a proxy: the instance lives on the local host-only network.
+func comprobarSitio(ctx context.Context, direccion, host string) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+direccion+"/", nil)
 	if err != nil {
-		return fmt.Errorf("error al crear solicitud de verificacion http: %w", err)
+		return err
 	}
-
-	domainHost := host
-	if !strings.Contains(host, ".") {
-		domainHost = fmt.Sprintf("%s.cloud.local", host)
+	req.Host = host
+	cliente := &http.Client{
+		Transport: &http.Transport{Proxy: nil, DisableKeepAlives: true},
+		// A redirect is not the site: only a direct 200 counts.
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
-	req.Host = domainHost
-
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := cliente.Do(req)
 	if err != nil {
-		return fmt.Errorf("error al verificar sitio web http: %w", err)
+		return fmt.Errorf("check site %s: %w", host, err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("verificacion http fallo con codigo estado: %d", resp.StatusCode)
+		return fmt.Errorf("check site %s: Apache answered %s", host, resp.Status)
 	}
-
 	return nil
+}
+
+// idAleatorio is 32 hex characters, which httpaas-publicar's argument rule accepts.
+func idAleatorio() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("random upload id: %w", err)
+	}
+	return hex.EncodeToString(b), nil
+}
+
+// mensajeCorto keeps the script's first line, so a message stays readable on the dashboard.
+func mensajeCorto(s string) string {
+	linea, _, _ := strings.Cut(s, "\n")
+	if linea == "" {
+		return "sin detalle"
+	}
+	return strings.TrimPrefix(linea, "Error: ")
 }
