@@ -125,7 +125,7 @@ ssh httpaas@192.168.10.10 sudo -n cat /etc/shadow                         # rech
 📸 **B-08** — `getent`/`Resolve-DnsName` y `ping` desde el host.
 **Commit:** `feat(scripts): resolve cloud.local from the host`
 
-### B6. Adaptador Go `internal/dns` ⬜ (H2)
+### B6. Adaptador Go `internal/dns` ✅ 2026-11-09 (H2)
 **Meta:** que la webapp maneje el DNS a través de la interfaz `puertos.DNS`.
 1. `Nuevo(ex executor.Executor, cfg)`.
 2. `Agregar(host, ip)` → `ex.Run(Command{Name:"sudo", Args:["/usr/local/sbin/httpaas-dns","agregar",host,ip]})`. `Quitar` es igual. Antes de ejecutar, valida con `dominio.ValidarHostname` y con la IP dentro del rango.

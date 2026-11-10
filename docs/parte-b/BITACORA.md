@@ -508,7 +508,73 @@ debian.org -> HTTP 200
 | `nslookup ns.cloud.local` falla con la regla puesta | `nslookup` no usa NRPT | Probar con `Resolve-DnsName` o `ping` |
 | `Resolve-DnsName ns.cloud.local -Server 8.8.8.8` devuelve el registro | NRPT se aplica antes que `-Server` cuando el nombre cae en el sufijo | Usar `nslookup` para consultar otro servidor de verdad |
 
-## B6. Adaptador `internal/dns` — ⬜ pendiente
+## B6. Adaptador `internal/dns` — ✅ 2026-11-09
+
+La webapp deja de hablar DNS a mano: usa `puertos.DNS`, que es el contrato que ya
+consumía `internal/instancias`. El adaptador no sabe de HTTP ni de VirtualBox.
+
+### Lo que se hizo
+
+`internal/dns/dns.go`, cuatro piezas:
+
+1. `Nuevo(ex executor.Executor, cfg config.Config) *DNS`. No conecta: el canal SSH
+   y el servidor DNS solo se tocan cuando se llama a un método.
+2. `Agregar` / `Quitar`: validan **antes** de construir el comando y ejecutan
+   `sudo /usr/local/sbin/httpaas-dns <sub> <args>` con `executor.Command`, nunca
+   con `sh -c`.
+3. `Resolver`: `net.Resolver` con `PreferGo: true` y un `Dial` fijo a
+   `192.168.10.10:53`, así no depende de NRPT ni de `nsswitch.conf`.
+4. `ejecutar`: revisa `ExitCode`, porque el executor solo devuelve `error` cuando
+   el comando **no se pudo entregar**.
+
+### Verificación (salida real)
+
+```text
+$ go test -count=1 ./internal/dns/
+ok  	github.com/lyc4nthrope/httpaas-paginas-web/internal/dns	5.480s
+
+$ go test -tags vm -count=1 -v -run TestVMRegistrarResolverQuitar ./internal/dns/
+=== RUN   TestVMRegistrarResolverQuitar
+--- PASS: TestVMRegistrarResolverQuitar (2.90s)
+```
+
+La prueba `vm` hace `Agregar` → `Resolver` → `Quitar` contra el `ns` real y deja
+la zona limpia:
+
+```text
+$ sudo httpaas-dns listar
+ns 192.168.10.10
+prueba 192.168.10.99
+```
+
+`gofmt -l .` limpio, `go vet ./...` limpio, `go build ./cmd/httpaas` ok. Los
+cuatro fallos de `go test ./...` en Windows son los de siempre por entorno
+(`almacen`, `executor`, `oplog`, `instancias.TestCrearTimeout`); CI corre en Linux.
+
+### Decisiones
+
+- **`Resolver` recibe el label, no el FQDN.** `internal/instancias:242` ya llama
+  `Resolver(ctx, nombre)` con `paisajes`, no con `paisajes.cloud.local`. El
+  adaptador agrega el dominio, y así nadie puede construir
+  `paisajes.cloud.local.cloud.local`.
+- **`Resolver` no aplica `dominio.ValidarHostname`.** B6.5 necesita resolver `ns`,
+  que `ValidarHostname` rechaza por reservado. El nombre solo llega a
+  `net.Resolver`, nunca a una línea de comandos, así que no hay superficie de
+  inyección.
+- **El `Dial` se fija en `Nuevo`, no en cada consulta.** Un solo lugar decide a
+  quién se le pregunta; `servidor` se calcula una vez con `net.JoinHostPort`.
+- **Un `exit != 0` es error con el `stderr`.** El mensaje útil lo escribe el
+  script (`ip '192.168.10.10' is reserved`); perderlo obligaría a leer el log de
+  la VM para entender un fallo.
+- **`lookup` es un campo, no una llamada directa.** Permite probar el FQDN y el
+  manejo de errores sin red; el camino real lo cubre la prueba `vm`.
+
+### Problemas encontrados
+
+| Síntoma | Causa | Solución |
+|---|---|---|
+| `make vm-test` se saltaba la prueba | No existe `config.json` (está en `.gitignore`) | Crear una config temporal y pasarla con `HTTPAAS_CONFIG` |
+| El adaptador podía reportar éxito con un comando fallido | `executor.SSH.Run` solo devuelve `error` para fallos de transporte | Revisar `res.ExitCode` y devolver el `stderr` |
 
 ## B6.5. Validación de `ns` al arrancar — ⬜ pendiente
 

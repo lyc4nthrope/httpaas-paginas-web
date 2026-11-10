@@ -1,7 +1,7 @@
-// Package dns will drive deploy/ns/httpaas-dns over SSH (phase B6). Until that
-// adapter exists, this file pins the contract of the script itself: it is the sudo
-// boundary on the ns VM (decision D7), so its argument validation is part of the
-// security surface, not an implementation detail.
+// Package dns drives deploy/ns/httpaas-dns over SSH (phase B6). This file also
+// pins the contract of the script itself: it is the sudo boundary on the ns VM
+// (decision D7), so its argument validation is part of the security surface, not
+// an implementation detail.
 package dns
 
 import (
