@@ -113,7 +113,7 @@ ssh httpaas@192.168.10.10 sudo -n cat /etc/shadow                         # rech
 ### B5. Resolver `*.cloud.local` desde el host ⬜ (H2)
 **Meta:** que el navegador abra `http://paisajes.cloud.local`.
 1. **Linux:**
-   - `/etc/nsswitch.conf`, línea `hosts:` → `files myhostname dns mdns4_minimal [NOTFOUND=return]` (`dns` antes de mDNS; ver §1 del plan general).
+   - `/etc/nsswitch.conf`, línea `hosts:` → `dns` **antes** de `mdns4_minimal` (`[NOTFOUND=return]` corta la búsqueda de `.local`; ver §1 del plan general). El script preserva los demás módulos de la línea y solo reubica `dns`.
    - Si `systemctl is-active systemd-resolved` está activo: `resolvectl dns vboxnet0 192.168.10.10` y `resolvectl domain vboxnet0 '~cloud.local'` (DNS dividido: solo `cloud.local` va a `ns`).
    - Si no: agregar `nameserver 192.168.10.10` como **primera** línea de `/etc/resolv.conf`. `ns` también resuelve internet por la recursión de B2.
    - Todo esto en `scripts/dns-host-linux.sh` (idempotente; pide `sudo`).
