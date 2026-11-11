@@ -128,7 +128,7 @@ el detalle y el botón Eliminar limpia lo que se haya creado.
 **P-01 — Red host-only del host.** Se ve el adaptador de VirtualBox con
 `192.168.10.1/24` y sin DHCP. Importa porque es la puerta de entrada del host a las
 VMs: si la red no existe con esa IP, nada del proyecto resuelve ni conecta.
-**Pendiente:** confirmar la captura definitiva en el PC de cada integrante.
+Tomada en el PC de Cristhian (Debian 13, VirtualBox 7.2): `vboxnet0` con `192.168.10.1/24`, sin DHCP.
 
 ---
 
