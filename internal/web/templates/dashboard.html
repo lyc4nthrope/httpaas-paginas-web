@@ -5,63 +5,644 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   {{if .Refrescar}}<meta http-equiv="refresh" content="3;url=/">{{end}}
   <title>Gestión de páginas y aplicaciones web</title>
-  <!-- Provisional version from phase A5. Part B replaces it in B7 using the Vista fields. -->
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0 auto; max-width: 960px; padding: 16px; }
-    form { display: grid; gap: 8px; max-width: 520px; }
-    .fila { display: flex; gap: 8px; }
-    .fila input { flex: 1; min-width: 0; }
-    .error { color: #b00020; margin: 0; }
-    .aviso { background: #e8f5e9; padding: 8px; }
-    table { border-collapse: collapse; width: 100%; margin-top: 24px; }
-    th, td { border-bottom: 1px solid #ccc; padding: 6px; text-align: left; }
-    .tabla { overflow-x: auto; }
+    :root {
+      color-scheme: light;
+      --fondo: #f3f5f9;
+      --superficie: #ffffff;
+      --tinta: #101828;
+      --tenue: #5b6472;
+      --linea: #e3e7ee;
+      --marca: #1d4ed8;
+      --marca-oscura: #1e40af;
+      --ok: #067647;
+      --ok-fondo: #ecfdf3;
+      --ok-linea: #abefc6;
+      --trabajo: #b54708;
+      --trabajo-fondo: #fffaeb;
+      --trabajo-linea: #fedf89;
+      --peligro: #b42318;
+      --peligro-fondo: #fef3f2;
+      --peligro-linea: #fecdca;
+      --radio: 14px;
+      --sombra: 0 1px 2px rgba(16, 24, 40, .05), 0 12px 32px -16px rgba(16, 24, 40, .25);
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      color: var(--tinta);
+      background:
+        radial-gradient(900px 320px at 50% -160px, #dfe8ff 0%, rgba(223, 232, 255, 0) 70%),
+        var(--fondo);
+    }
+    .envoltura { max-width: 1080px; margin: 0 auto; padding: 32px 20px 48px; }
+    code {
+      padding: .1em .35em;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .92em;
+      background: #eef2f8;
+      border-radius: 5px;
+    }
+
+    .cabecera { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 22px; }
+    .marca {
+      display: grid;
+      flex: 0 0 auto;
+      place-items: center;
+      width: 46px;
+      height: 46px;
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: #fff;
+      background: linear-gradient(135deg, var(--marca), #4f46e5);
+      border-radius: 13px;
+      box-shadow: var(--sombra);
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: clamp(1.35rem, 2.4vw, 1.7rem);
+      letter-spacing: -.01em;
+    }
+    .descripcion { max-width: 70ch; margin: 0; color: var(--tenue); }
+
+    .pasos {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin: 0 0 20px;
+      padding: 0;
+      list-style: none;
+    }
+    .pasos li {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 12px 14px;
+      font-size: .92rem;
+      color: var(--tenue);
+      background: rgba(255, 255, 255, .72);
+      border: 1px solid var(--linea);
+      border-radius: 12px;
+    }
+    .num {
+      display: inline-grid;
+      flex: 0 0 auto;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      margin-top: 1px;
+      font-size: .78rem;
+      font-weight: 700;
+      color: var(--marca-oscura);
+      background: #e8edfb;
+      border-radius: 999px;
+    }
+
+    .aviso, .error { margin: 0 0 16px; padding: 11px 14px; border: 1px solid; border-radius: 10px; }
+    .aviso { color: var(--ok); background: var(--ok-fondo); border-color: var(--ok-linea); }
+    .error { color: var(--peligro); background: var(--peligro-fondo); border-color: var(--peligro-linea); }
+    .progreso {
+      margin: 16px 0 0;
+      padding: 11px 14px;
+      color: var(--marca-oscura);
+      background: #eef2ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 10px;
+    }
+    .progreso[hidden] { display: none; }
+
+    .panel {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
+      padding: 22px;
+      background: var(--superficie);
+      border: 1px solid var(--linea);
+      border-radius: var(--radio);
+      box-shadow: var(--sombra);
+    }
+    .campo { display: grid; gap: 6px; min-width: 0; }
+    .campo-titulo { display: flex; gap: 8px; align-items: center; font-weight: 650; }
+    .campo-titulo label { cursor: pointer; }
+    .ayuda { margin: 0; font-size: .88rem; color: var(--tenue); }
+    .fila { display: flex; gap: 8px; min-width: 0; }
+    .fila input[type="text"] {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 10px 12px;
+      font: inherit;
+      color: inherit;
+      background: #fff;
+      border: 1px solid #c7d0e0;
+      border-radius: 10px;
+    }
+    .fila input[type="text"]:hover { border-color: #a9b6cb; }
+    .fila input[type="text"][readonly] { color: var(--tenue); background: #f7f8fb; }
+    .archivo {
+      position: relative;
+      display: flex;
+      flex: 1 1 auto;
+      gap: 10px;
+      align-items: center;
+      min-width: 0;
+      padding: 6px 10px;
+      background: #fff;
+      border: 1px dashed #c7d0e0;
+      border-radius: 10px;
+    }
+    .archivo:focus-within { outline: 3px solid #f2a900; outline-offset: 2px; }
+    .archivo input[type="file"] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .boton-archivo {
+      flex: 0 0 auto;
+      padding: 6px 10px;
+      font-weight: 600;
+      background: #eef2f8;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .boton-archivo:hover { background: #e2e8f2; }
+    .nombre-archivo {
+      min-width: 0;
+      overflow: hidden;
+      font-size: .9rem;
+      color: var(--tenue);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    button {
+      padding: 10px 16px;
+      font: inherit;
+      font-weight: 600;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background-color .15s ease;
+    }
+    button:active { transform: translateY(1px); }
+    button:disabled { cursor: progress; opacity: .6; }
+    .primario { color: #fff; background: var(--marca); }
+    .primario:hover { background: var(--marca-oscura); }
+    .secundario { color: var(--marca-oscura); background: #eef2ff; border-color: #c7d2fe; }
+    .secundario:hover { background: #e0e7ff; }
+    .peligro { color: var(--peligro); background: #fff; border-color: var(--peligro-linea); }
+    .peligro:hover { background: var(--peligro-fondo); }
+    :focus-visible { outline: 3px solid #f2a900; outline-offset: 2px; }
+
+    .lista { margin-top: 30px; }
+    .lista-cabecera { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+    h2 { margin: 0; font-size: 1.15rem; }
+    .contador {
+      display: inline-grid;
+      place-items: center;
+      min-width: 26px;
+      height: 22px;
+      padding: 0 8px;
+      font-size: .8rem;
+      font-weight: 700;
+      color: var(--marca-oscura);
+      background: #e8edfb;
+      border-radius: 999px;
+    }
+    .tabla {
+      overflow-x: auto;
+      background: var(--superficie);
+      border: 1px solid var(--linea);
+      border-radius: var(--radio);
+      box-shadow: var(--sombra);
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      padding: 10px 14px;
+      font-size: .76rem;
+      letter-spacing: .06em;
+      text-align: left;
+      text-transform: uppercase;
+      color: var(--tenue);
+      background: #fafbfe;
+      border-bottom: 1px solid var(--linea);
+    }
+    td { padding: 12px 14px; vertical-align: middle; border-bottom: 1px solid var(--linea); overflow-wrap: anywhere; }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: #fafbff; }
+    a { color: var(--marca); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .enlace { font-weight: 600; overflow-wrap: anywhere; }
+    .enlace::after { content: " ↗"; font-size: .9em; }
+    .ip { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92rem; }
+
+    .estado {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      padding: 2px 10px 2px 8px;
+      font-size: .8rem;
+      font-weight: 650;
+      border: 1px solid transparent;
+      border-radius: 999px;
+    }
+    .estado::before { content: ""; width: 7px; height: 7px; background: currentColor; border-radius: 50%; }
+    .estado-lista { color: var(--ok); background: var(--ok-fondo); border-color: var(--ok-linea); }
+    .estado-creando, .estado-publicando, .estado-eliminando {
+      color: var(--trabajo);
+      background: var(--trabajo-fondo);
+      border-color: var(--trabajo-linea);
+    }
+    .estado-error, .estado-perdida { color: var(--peligro); background: var(--peligro-fondo); border-color: var(--peligro-linea); }
+    .detalle { display: block; margin-top: 4px; font-size: .82rem; color: var(--peligro); }
+    .acciones form { margin: 0; }
+
+    .dialogo {
+      width: min(420px, calc(100vw - 32px));
+      padding: 22px;
+      color: var(--tinta);
+      background: var(--superficie);
+      border: 0;
+      border-radius: var(--radio);
+      box-shadow: 0 24px 64px -24px rgba(16, 24, 40, .45);
+    }
+    .dialogo::backdrop { background: rgba(16, 24, 40, .45); }
+    .dialogo h2 { margin: 0 0 8px; font-size: 1.1rem; }
+    .dialogo p { margin: 0 0 20px; color: var(--tenue); }
+    .dialogo-acciones { display: flex; gap: 10px; justify-content: flex-end; }
+
+    .vacio {
+      display: grid;
+      justify-items: center;
+      gap: 6px;
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--tenue);
+      background: var(--superficie);
+      border: 1px dashed #c7d0e0;
+      border-radius: var(--radio);
+    }
+    .vacio svg { color: #98a2b3; }
+    .vacio-titulo { margin: 6px 0 0; font-size: 1.05rem; font-weight: 650; color: var(--tinta); }
+    .vacio p { max-width: 46ch; margin: 0; }
+
+    .pie { margin-top: 36px; font-size: .82rem; color: #8a94a6; text-align: center; }
+
+    @media (max-width: 720px) {
+      .envoltura { padding: 20px 14px 36px; }
+      .cabecera { flex-direction: column; gap: 12px; }
+      .pasos { grid-template-columns: 1fr; }
+      .panel { grid-template-columns: minmax(0, 1fr); padding: 18px; }
+      .fila { flex-direction: column; }
+      .fila input { width: 100%; }
+      .fila button { width: 100%; }
+    }
+
+    @media (max-width: 640px) {
+      .tabla { overflow: visible; background: transparent; border: 0; box-shadow: none; }
+      table, tbody, tr, td { display: block; width: 100%; }
+      thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+      tr {
+        margin-bottom: 10px;
+        padding: 8px 14px;
+        background: var(--superficie);
+        border: 1px solid var(--linea);
+        border-radius: 12px;
+      }
+      td { padding: 6px 0; border-bottom: 0; }
+      td[data-etiqueta]::before {
+        content: attr(data-etiqueta);
+        display: block;
+        font-size: .74rem;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--tenue);
+      }
+      td.acciones { padding-top: 10px; }
+      td.acciones button { width: 100%; }
+    }
   </style>
 </head>
 <body>
-  <h1>Gestión de páginas y aplicaciones web</h1>
-  {{with .Aviso}}<p class="aviso" role="status">{{.}}</p>{{end}}
+  <div class="envoltura">
+    <header class="cabecera">
+      <div class="marca" aria-hidden="true">H</div>
+      <div>
+        <h1>Gestión de páginas y aplicaciones web</h1>
+        <p class="descripcion">
+          Desde esta página creas una instancia Apache en VirtualBox, la registras en
+          <code>cloud.local</code> y publicas su sitio web. Cada instancia recibe una IP de la red
+          <code>192.168.10.0/24</code> y un enlace como <code>paisajes.cloud.local</code>.
+        </p>
+      </div>
+    </header>
 
-  <form method="post" action="/instancias" enctype="multipart/form-data">
-    <label for="nombre">Nombre del host</label>
-    <div class="fila">
-      <input id="nombre" name="{{.CampoNombre}}" value="{{.Nombre}}" autocomplete="off" required>
-      <button type="submit" formaction="/instancias">Aceptar</button>
-    </div>
-    {{with index .Errores .CampoNombre}}<p class="error">{{.}}</p>{{end}}
+    {{with .Aviso}}<p class="aviso" role="status">{{.}}</p>{{end}}
 
-    <label for="archivo">Contenido web (comprimido, máximo {{.MaxZipMB}} MB)</label>
-    <div class="fila">
-      <input id="archivo" name="{{.CampoArchivo}}" type="file" accept=".zip">
-      <button type="submit" formaction="/contenido">Publicar</button>
-    </div>
-    {{with index .Errores .CampoArchivo}}<p class="error">{{.}}</p>{{end}}
-  </form>
+    <ol class="pasos" aria-label="Cómo funciona">
+      <li><span class="num" aria-hidden="true">1</span><span>Escribe el nombre y pulsa <strong>Aceptar</strong>.</span></li>
+      <li><span class="num" aria-hidden="true">2</span><span>Espera a que el estado sea <strong>lista</strong>.</span></li>
+      <li><span class="num" aria-hidden="true">3</span><span>Elige el <code>.zip</code> y pulsa <strong>Publicar</strong>.</span></li>
+    </ol>
 
-  <h2>Instancias disponibles</h2>
-  {{if .Instancias}}
-  <div class="tabla">
-    <table>
-      <thead><tr><th>Enlace</th><th>IP</th><th>Máquina virtual</th><th>Creada</th><th>Estado</th><th></th></tr></thead>
-      <tbody>
-      {{range .Instancias}}
-        <tr>
-          <td><a href="{{.URL}}" target="_blank" rel="noopener">{{.URL}}</a></td>
-          <td>{{.IP}}/{{.Prefijo}}</td>
-          <td>{{.Nombre}}</td>
-          <td>{{.Creada}}</td>
-          <td>{{.Estado}}{{with .Error}}<br><small class="error">{{.}}</small>{{end}}</td>
-          <td>{{if .Eliminable}}
-            <form method="post" action="/instancias/{{.Nombre}}/eliminar" onsubmit="return confirm('¿Eliminar la instancia {{.Nombre}}?')">
-              <button type="submit">Eliminar</button>
-            </form>{{end}}</td>
-        </tr>
+    <form class="panel" method="post" action="/instancias" enctype="multipart/form-data">
+      <div class="campo">
+        <div class="campo-titulo">
+          <span class="num" aria-hidden="true">1</span>
+          <label for="nombre">Nombre del host</label>
+        </div>
+        <p class="ayuda">Minúsculas, números y guiones. El nombre se convierte en el hostname de la VM y en su registro DNS.</p>
+        <div class="fila">
+          <input id="nombre" type="text" name="{{.CampoNombre}}" value="{{.Nombre}}"
+                 autocomplete="off" spellcheck="false" placeholder="paisajes" required>
+          <button type="submit" class="primario" formaction="/instancias">Aceptar</button>
+        </div>
+        {{with index .Errores .CampoNombre}}<p class="error" role="alert">{{.}}</p>{{end}}
+      </div>
+
+      <div class="campo">
+        <div class="campo-titulo">
+          <span class="num" aria-hidden="true">2</span>
+          <label for="archivo">Contenido web (.zip)</label>
+        </div>
+        <p class="ayuda">
+          Primero crea la instancia con <strong>Aceptar</strong> y espera a que esté
+          <strong>lista</strong>. Se publica en la instancia cuyo nombre está arriba.
+          Debe incluir <code>index.html</code> en la raíz o dentro de una sola carpeta.
+          Máximo {{.MaxZipMB}} MB.
+        </p>
+        <div class="fila">
+          <div class="archivo">
+            <input id="archivo" type="file" name="{{.CampoArchivo}}" accept=".zip">
+            <label for="archivo" class="boton-archivo">Elegir archivo</label>
+            <span id="nombre-archivo" class="nombre-archivo">Sin archivo</span>
+          </div>
+          <button type="submit" class="secundario" formaction="/contenido">Publicar</button>
+        </div>
+        {{with index .Errores .CampoArchivo}}<p class="error" role="alert">{{.}}</p>{{end}}
+      </div>
+    </form>
+
+    <p id="progreso" class="progreso" role="status" aria-live="polite" hidden></p>
+
+    <section class="lista" aria-labelledby="titulo-instancias">
+      <div class="lista-cabecera">
+        <h2 id="titulo-instancias">Instancias disponibles</h2>
+        {{if .Instancias}}<span class="contador" aria-label="{{len .Instancias}} instancias">{{len .Instancias}}</span>{{end}}
+      </div>
+
+      {{if .Instancias}}
+      <div class="tabla">
+        <table>
+          <thead>
+            <tr><th>Enlace</th><th>IP</th><th>Máquina virtual</th><th>Creada</th><th>Estado</th><th></th></tr>
+          </thead>
+          <tbody>
+          {{range .Instancias}}
+            <tr>
+              <td data-etiqueta="Enlace"><a class="enlace" href="{{.URL}}" target="_blank" rel="noopener">{{.URL}}</a></td>
+              <td data-etiqueta="IP"><span class="ip">{{.IP}}/{{.Prefijo}}</span></td>
+              <td data-etiqueta="Máquina virtual">{{.Nombre}}</td>
+              <td data-etiqueta="Creada">{{.Creada}}</td>
+              <td data-etiqueta="Estado">
+                <span class="estado estado-{{.Estado}}">{{.Estado}}</span>
+                {{with .Error}}<span class="detalle">{{.}}</span>{{end}}
+              </td>
+              <td class="acciones">
+                {{if .Eliminable}}
+                <form class="eliminar" method="post" action="/instancias/{{.Nombre}}/eliminar"
+                      data-nombre="{{.Nombre}}"
+                      onsubmit="return confirm('¿Eliminar la instancia {{.Nombre}}?')">
+                  <button type="submit" class="peligro">Eliminar</button>
+                </form>
+                {{end}}
+              </td>
+            </tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+      {{else}}
+      <div class="vacio">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="6" rx="2"></rect>
+          <rect x="3" y="14" width="18" height="6" rx="2"></rect>
+          <circle cx="7" cy="7" r=".6" fill="currentColor"></circle>
+          <circle cx="7" cy="17" r=".6" fill="currentColor"></circle>
+        </svg>
+        <p class="vacio-titulo">Aún no hay instancias</p>
+        <p>Escribe un nombre arriba y pulsa <strong>Aceptar</strong> para crear la primera.</p>
+      </div>
       {{end}}
-      </tbody>
-    </table>
+    </section>
+
+    <footer class="pie">HTTPaaS · Parcial 3 · Computación en la Nube</footer>
   </div>
-  {{else}}
-  <p>Aún no hay instancias. Escribe un nombre y pulsa Aceptar.</p>
-  {{end}}
+
+  <dialog id="confirmar-eliminar" class="dialogo" aria-labelledby="confirmar-titulo">
+    <h2 id="confirmar-titulo">Eliminar instancia</h2>
+    <p id="confirmar-texto"></p>
+    <div class="dialogo-acciones">
+      <button type="button" id="confirmar-cancelar" class="secundario">Cancelar</button>
+      <button type="button" id="confirmar-aceptar" class="peligro">Eliminar</button>
+    </div>
+  </dialog>
+
+  <script>
+    (function () {
+      var campoNombre = document.getElementById("nombre");
+      var campoArchivo = document.getElementById("archivo");
+      var nombreArchivo = document.getElementById("nombre-archivo");
+      var progreso = document.getElementById("progreso");
+      var formulario = document.querySelector("form.panel");
+      var botonPublicar = formulario
+        ? formulario.querySelector('button[formaction="/contenido"]')
+        : null;
+
+      if (campoArchivo && nombreArchivo) {
+        campoArchivo.addEventListener("change", function () {
+          nombreArchivo.textContent = campoArchivo.files && campoArchivo.files.length
+            ? campoArchivo.files[0].name
+            : "Sin archivo";
+        });
+      }
+
+      var dialogo = document.getElementById("confirmar-eliminar");
+      if (dialogo && typeof dialogo.showModal === "function") {
+        var textoDialogo = document.getElementById("confirmar-texto");
+        var pendiente = null;
+
+        Array.prototype.forEach.call(document.querySelectorAll("form.eliminar"), function (form) {
+          form.onsubmit = null; // the dialog replaces the native confirm
+          form.addEventListener("submit", function (evento) {
+            evento.preventDefault();
+            pendiente = form;
+            textoDialogo.textContent = "Se eliminará la instancia " + form.dataset.nombre +
+              " y su contenido publicado. Esta acción no se puede deshacer.";
+            dialogo.showModal();
+          });
+        });
+
+        document.getElementById("confirmar-cancelar").addEventListener("click", function () {
+          dialogo.close();
+        });
+
+        document.getElementById("confirmar-aceptar").addEventListener("click", function () {
+          if (!pendiente) return;
+          var form = pendiente;
+          pendiente = null;
+          dialogo.close();
+          HTMLFormElement.prototype.submit.call(form);
+        });
+
+        dialogo.addEventListener("close", function () { pendiente = null; });
+      }
+
+      // Smart Publicar: create the instance if it does not exist, wait for
+      // "lista" and then upload the zip. Without JavaScript the form keeps
+      // working with the two classic buttons.
+      if (!formulario || !campoNombre || !campoArchivo || !botonPublicar || !progreso) return;
+
+      function avisar(mensaje) {
+        progreso.textContent = mensaje;
+        progreso.hidden = !mensaje;
+      }
+
+      function errorDe(html) {
+        try {
+          var doc = new DOMParser().parseFromString(html, "text/html");
+          var nodo = doc.querySelector(".error");
+          return nodo ? nodo.textContent.trim() : "";
+        } catch (e) {
+          return "";
+        }
+      }
+
+      function esperar(ms) {
+        return new Promise(function (resolver) { setTimeout(resolver, ms); });
+      }
+
+      function estadoDe(nombre) {
+        return fetch("/api/instancias", { headers: { Accept: "application/json" } })
+          .then(function (r) {
+            if (!r.ok) throw new Error("no se pudo consultar el estado de las instancias");
+            return r.json();
+          })
+          .then(function (lista) {
+            for (var i = 0; i < lista.length; i++) {
+              if (lista[i].Nombre === nombre) return lista[i];
+            }
+            return null;
+          });
+      }
+
+      function crear(nombre) {
+        var datos = new FormData();
+        datos.append(campoNombre.name, nombre);
+        return fetch("/instancias", { method: "POST", body: datos }).then(function (r) {
+          if (r.status === 422) {
+            return r.text().then(function (html) {
+              throw new Error(errorDe(html) || "el nombre no es válido");
+            });
+          }
+          if (!r.ok) throw new Error("no se pudo crear la instancia (" + r.status + ")");
+        });
+      }
+
+      function publicar(nombre, archivo) {
+        var datos = new FormData();
+        datos.append(campoNombre.name, nombre);
+        datos.append(campoArchivo.name, archivo);
+        return fetch("/contenido", { method: "POST", body: datos }).then(function (r) {
+          if (r.status === 422) {
+            return r.text().then(function (html) {
+              throw new Error(errorDe(html) || "el archivo no es válido");
+            });
+          }
+          if (!r.ok) throw new Error("no se pudo publicar el contenido (" + r.status + ")");
+        });
+      }
+
+      function esperarLista(nombre) {
+        var limite = Date.now() + 180000;
+        function intentar() {
+          return estadoDe(nombre).then(function (instancia) {
+            if (!instancia) {
+              throw new Error("la instancia " + nombre + " no aparece en el estado; vuelve a intentarlo");
+            }
+            if (instancia.Estado === "lista") return instancia;
+            if (instancia.Estado === "error" || instancia.Estado === "perdida") {
+              throw new Error("la instancia " + nombre + " quedó en estado " + instancia.Estado +
+                (instancia.Error ? ": " + instancia.Error : ""));
+            }
+            if (Date.now() > limite) {
+              throw new Error("la instancia " + nombre + " no llegó a estar lista a tiempo");
+            }
+            avisar("Esperando a que " + nombre + " esté lista…");
+            return esperar(2000).then(intentar);
+          });
+        }
+        return intentar();
+      }
+
+      formulario.addEventListener("submit", function (evento) {
+        if (!evento.submitter || evento.submitter !== botonPublicar) return;
+        evento.preventDefault();
+
+        var nombre = campoNombre.value.trim();
+        var archivo = campoArchivo.files && campoArchivo.files[0];
+        if (!nombre) {
+          campoNombre.focus();
+          return;
+        }
+        if (!archivo) {
+          avisar("Elige un archivo .zip antes de publicar.");
+          return;
+        }
+        if (!/\.zip$/i.test(archivo.name)) {
+          avisar("El archivo debe tener extensión .zip.");
+          return;
+        }
+
+        var botones = formulario.querySelectorAll("button[type=submit]");
+        Array.prototype.forEach.call(botones, function (b) { b.disabled = true; });
+        campoNombre.readOnly = true;
+
+        function terminar() {
+          Array.prototype.forEach.call(botones, function (b) { b.disabled = false; });
+          campoNombre.readOnly = false;
+        }
+
+        estadoDe(nombre).then(function (actual) {
+          if (actual && (actual.Estado === "error" || actual.Estado === "perdida")) {
+            throw new Error("la instancia " + nombre + " está en estado " + actual.Estado +
+              "; elimínala y vuelve a crearla");
+          }
+          if (actual) return null;
+          avisar("Creando la instancia " + nombre + "…");
+          return crear(nombre);
+        }).then(function () {
+          avisar("Esperando a que " + nombre + " esté lista…");
+          return esperarLista(nombre);
+        }).then(function () {
+          avisar("Publicando el contenido en " + nombre + "…");
+          return publicar(nombre, archivo);
+        }).then(function () {
+          window.location.assign("/?aviso=publicando&nombre=" + encodeURIComponent(nombre));
+        }).catch(function (e) {
+          avisar(e && e.message ? e.message : "no se pudo completar la publicación");
+          terminar();
+        });
+      });
+    })();
+  </script>
 </body>
 </html>
