@@ -8,8 +8,8 @@
 > **Estado de este documento (borrador).** Las Partes A y B están desarrolladas y sus
 > capturas están en `docs/capturas/`. Falta la sección de C y sus capturas. La prueba
 > completa en modo real ya se ejecutó (26 OK, 0 FALLA, 2026-11-11) y el banner B-12
-> está tomado; la integración final de las tres partes vive en la rama `integracion`
-> (PR #6). Los huecos están marcados con **Pendiente (C)**.
+> está tomado; la integración final de las tres partes ya está en `dev` (PR #6).
+> Los huecos están marcados con **Pendiente (C)**.
 
 ---
 
