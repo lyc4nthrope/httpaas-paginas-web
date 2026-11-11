@@ -384,9 +384,9 @@ cambia.
 vacío) y `TestVMComprobar` contra `ns`. El camino de error se comprobó apuntando
 `dns.ip` a `192.168.10.250`: tarda 5.01 s y devuelve la receta exacta.
 
-**Pendiente.** El banner en el dashboard (B-12) necesita `web.Vista.DNSAviso` y el
-cableado de A7; el modo real todavía no arranca. Se agregará el bloque
-`{{with .DNSAviso}}` en cuanto exista el campo.
+**Banner (B-12) — ✅ 2026-11-11.** El dashboard muestra `Vista.DNSAviso` como alerta
+(rama `integracion`). Probado contra la `ns` real: al apagarla, el aviso aparece en
+segundos, y al encenderla desaparece solo en menos de un minuto, sin reiniciar la app.
 
 ---
 
@@ -513,9 +513,9 @@ Las peticiones solo validan, reservan y encolan, y la web responde al instante. 
 
 El modo `-simular` permite usar toda la interfaz sin VMs.
 
-### A6. Adaptador VirtualBox — 🟡 código ✅; prueba con la plantilla real pendiente
+### A6. Adaptador VirtualBox — ✅ 2026-11-11
 
-Los argumentos de `VBoxManage` los arman funciones puras, que se prueban sin VirtualBox. Si `Crear` falla a medias, borra lo creado. `EsperarLista` exige dos cosas: `/httpaas/estado = listo` **y** el puerto 22 abierto. La marca `/httpaas/hostname` se escribe justo después de `createvm`, y **`Eliminar` solo borra VMs que la tienen**: una VM ajena con el mismo nombre nunca se toca. Si VirtualBox sigue con la VM bloqueada después de apagarla, el borrado se reintenta, y solo en ese caso. Falta la prueba con el disco real de la Parte C: crear y borrar una instancia y comprobar que `ApacheServer.vdi` sobrevive.
+Los argumentos de `VBoxManage` los arman funciones puras, que se prueban sin VirtualBox. Si `Crear` falla a medias, borra lo creado. `EsperarLista` exige dos cosas: `/httpaas/estado = listo` **y** el puerto 22 abierto. La marca `/httpaas/hostname` se escribe justo después de `createvm`, y **`Eliminar` solo borra VMs que la tienen**: una VM ajena con el mismo nombre nunca se toca. Si VirtualBox sigue con la VM bloqueada después de apagarla, el borrado se reintenta, y solo en ese caso. Probado con el disco real de la Parte C (2026-11-11): se crearon y borraron dos instancias, y `ApacheServer.vdi` sigue en multiconexión, sin hijos.
 
 ### A7. Integración — ✅ 2026-11-10
 
@@ -530,9 +530,9 @@ El aviso de `ns` (B6.5) se revisa cada 30 s en segundo plano y llega a la planti
 - Las pruebas de la Parte B contra la `ns` real pasan.
 - La app en modo real, con un disco base inválido a propósito: VirtualBox lo rechazó, la app **deshizo la VM** (no quedó ninguna), mostró un error claro, y Eliminar limpió el DNS real.
 
-### A8. Prueba completa y README — 🟡 script ✅; ejecución real pendiente de la plantilla
+### A8. Prueba completa y README — ✅ 2026-11-11
 
-`scripts/prueba-completa.sh` hace los 7 pasos de la sección 6. Contra `make simular` da **17 OK y 3 omitidos** (los que necesitan VMs), y si ya existe una instancia falla como debe. El `README.md` explica la preparación, la configuración, el uso y las pruebas, pensado para quien llega al repositorio sin contexto.
+`scripts/prueba-completa.sh` hace los 7 pasos de la sección 6. Contra `make simular` da **17 OK y 3 omitidos** (los que necesitan VMs), y si ya existe una instancia falla como debe. **En modo real** (2026-11-11, con `ns` y el disco de la Parte C): **26 OK, 0 FALLA**. El `README.md` explica la preparación, la configuración, el uso y las pruebas, pensado para quien llega al repositorio sin contexto.
 
 ### Cómo se verificó la Parte A
 
@@ -626,8 +626,8 @@ escritorio.
 
 ![B-12 — banner de DNS](capturas/B-12.png)
 
-**B-12 — Banner con `ns` apagada.** **Pendiente:** bloqueado por A7. Cuando `ns` no
-responde, el dashboard debe mostrar la receta (`VBoxManage import ns.ova` o
+**B-12 — Banner con `ns` apagada.** Cuando `ns` no
+responde, el dashboard muestra la receta (`VBoxManage import ns.ova` o
 `deploy/ns/instalar.sh`) en vez de un error a medias. Importa porque convierte un
 fallo de infraestructura en una acción concreta para el usuario.
 
@@ -645,7 +645,7 @@ fallo de infraestructura en una acción concreta para el usuario.
 6. Eliminar `paisajes`: la VM no está en `VBoxManage list vms`, el nombre ya no resuelve y `ApacheServer.vdi` sigue existiendo.
 7. Eliminar `negocios`.
 
-Imprime `OK`, `FALLA` u `omitido` por paso y termina con código distinto de 0 si algo falla. Con `SIMULADO=1` corre contra `make simular` y omite lo que necesita VMs (2026-11-10: **17 OK, 0 FALLA, 3 omitidos**). **Pendiente (A + C):** la ejecución real, con la plantilla de la Parte C, y su resultado adjunto (A-16).
+Imprime `OK`, `FALLA` u `omitido` por paso y termina con código distinto de 0 si algo falla. Con `SIMULADO=1` corre contra `make simular` y omite lo que necesita VMs (2026-11-10: **17 OK, 0 FALLA, 3 omitidos**). En modo real, con `ns` y el disco de la Parte C (2026-11-11): **26 OK, 0 FALLA, 0 omitidos** (A-16).
 
 | Captura | Qué se ve | Por qué importa |
 |---|---|---|
