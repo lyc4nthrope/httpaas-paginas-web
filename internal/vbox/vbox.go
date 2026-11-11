@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os/exec"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/config"
+	"github.com/lyc4nthrope/httpaas-paginas-web/internal/oplog"
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/puertos"
 )
 
@@ -45,10 +47,22 @@ var _ puertos.Hipervisor = (*VBox)(nil)
 func Nuevo(c config.Config) *VBox {
 	v := &VBox{cfg: c.VBox, dominio: c.Dominio, dnsIP: c.DNS.IP, sondeo: 2 * time.Second}
 	v.run = func(ctx context.Context, args ...string) (string, error) {
+		inicio := time.Now()
 		cmd := exec.CommandContext(ctx, c.VBox.VBoxManage, args...)
 		var out, errOut bytes.Buffer
 		cmd.Stdout, cmd.Stderr = &out, &errOut
-		if err := cmd.Run(); err != nil {
+		err := cmd.Run()
+		paso := oplog.Step{Cmd: "VBoxManage " + strings.Join(args, " "), Stdout: out.String(), Stderr: errOut.String(),
+			DurationMS: time.Since(inicio).Milliseconds()}
+		var ee *exec.ExitError
+		switch {
+		case errors.As(err, &ee):
+			paso.ExitCode = ee.ExitCode()
+		case err != nil: // it never ran: missing binary, canceled context
+			paso.ExitCode, paso.Error = -1, err.Error()
+		}
+		oplog.Anotar(ctx, paso)
+		if err != nil {
 			return out.String(), fmt.Errorf("VBoxManage %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(errOut.String()))
 		}
 		return out.String(), nil

@@ -8,6 +8,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
+
+	"github.com/lyc4nthrope/httpaas-paginas-web/internal/oplog"
 )
 
 // OlvidarHost removes every key recorded for ip from the service's known_hosts file.
@@ -21,7 +24,15 @@ func OlvidarHost(ctx context.Context, knownHosts, ip string) error {
 	if _, err := os.Stat(knownHosts); errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
+	start := time.Now()
 	out, err := exec.CommandContext(ctx, "ssh-keygen", "-R", ip, "-f", knownHosts).CombinedOutput()
+	code := 0
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		code = ee.ExitCode()
+	}
+	oplog.Anotar(ctx, oplog.Step{Cmd: "ssh-keygen -R " + ip + " -f " + knownHosts, Stdout: string(out),
+		ExitCode: code, DurationMS: time.Since(start).Milliseconds()})
 	if err != nil {
 		return fmt.Errorf("forget host %s: %w: %s", ip, err, strings.TrimSpace(string(out)))
 	}

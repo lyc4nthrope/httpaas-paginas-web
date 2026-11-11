@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/lyc4nthrope/httpaas-paginas-web/internal/oplog"
 )
 
 // SSH connects to one VM as user@host with the service's key. The run field is
@@ -38,10 +40,12 @@ func (s *SSH) Run(ctx context.Context, c Command) (Result, error) {
 	args := append(s.options("-p"), s.target(), "--", c.String())
 	out, errOut, code, runErr := s.exec(ctx, "ssh", args, c.Stdin)
 	res := Result{Cmd: c.String(), Stdout: out, Stderr: errOut, ExitCode: code, Duration: time.Since(start)}
+	var err error
 	if transporteFallo(code, runErr) {
-		return res, s.channelError(errOut, runErr)
+		err = s.channelError(errOut, runErr)
 	}
-	return res, nil
+	anotar(ctx, "ssh "+s.target()+" -- "+c.String(), out, errOut, code, start, err)
+	return res, err
 }
 
 // transporteFallo reports whether the client itself failed (connection, missing binary,
@@ -71,14 +75,17 @@ func (s *SSH) CopyFrom(ctx context.Context, remotePath, localPath string) error 
 }
 
 func (s *SSH) copy(ctx context.Context, src, dst string) error {
-	_, errOut, code, err := s.exec(ctx, "scp", append(s.options("-P"), "--", src, dst), "")
+	start := time.Now()
+	out, errOut, code, err := s.exec(ctx, "scp", append(s.options("-P"), "--", src, dst), "")
+	var res error
 	switch {
 	case transporteFallo(code, err):
-		return &ChannelError{Msg: "No se pudo copiar un archivo por SSH con " + s.target(), Err: errors.New(detail(errOut, err))}
+		res = &ChannelError{Msg: "No se pudo copiar un archivo por SSH con " + s.target(), Err: errors.New(detail(errOut, err))}
 	case err != nil || code != 0:
-		return errors.New("scp " + src + " to " + dst + ": " + detail(errOut, nil))
+		res = errors.New("scp " + src + " to " + dst + ": " + detail(errOut, nil))
 	}
-	return nil
+	anotar(ctx, "scp "+src+" "+dst, out, errOut, code, start, res)
+	return res
 }
 
 // options is the fixed non-interactive option set: BatchMode fails instead of
@@ -147,4 +154,15 @@ func detail(stderr string, cause error) string {
 		return cause.Error()
 	}
 	return "the client produced no output"
+}
+
+// anotar notes one command in the job's operation log, if the context carries one. The
+// command text omits the fixed options (key, known_hosts, timeouts): they never change.
+func anotar(ctx context.Context, cmd, stdout, stderr string, code int, start time.Time, err error) {
+	paso := oplog.Step{Cmd: cmd, Stdout: stdout, Stderr: stderr, ExitCode: code, DurationMS: time.Since(start).Milliseconds()}
+	var ce *ChannelError
+	if errors.As(err, &ce) {
+		paso.Error = ce.Error()
+	}
+	oplog.Anotar(ctx, paso)
 }

@@ -22,6 +22,8 @@ test:
 # What CI runs on every pull request: format, vet, tests and build.
 check:
 	@test -z "$$(gofmt -l .)" || { echo "Run gofmt on:"; gofmt -l .; exit 1; }
+	@# Shell scripts that run inside the VMs: a syntax error there only shows up on a clone.
+	@for f in $$(git ls-files '*.sh' deploy/plantilla/httpaas-firstboot deploy/plantilla/httpaas-publicar deploy/ns/httpaas-dns); do bash -n "$$f" || { echo "Syntax error in $$f"; exit 1; }; done
 	go vet ./...
 	go test -race -count=1 ./...
 	go build ./cmd/httpaas

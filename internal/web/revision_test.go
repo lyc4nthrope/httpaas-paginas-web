@@ -104,3 +104,36 @@ func TestUnreadableCreateFormReportsTheNameField(t *testing.T) {
 		t.Fatalf("the error must be shown under the name field (positions nombre=%d msg=%d archivo=%d)", nombre, msg, archivo)
 	}
 }
+
+// The ns warning (phase B6.5) reaches the template data on every render.
+func TestVistaCarriesTheDNSWarning(t *testing.T) {
+	p := nueva(t)
+	aviso := "no se contacta la VM DNS en 192.168.10.10"
+	s := &servidor{o: Opciones{Servicio: p.svc, DNSAviso: func() string { return aviso }}}
+	if got := s.vista().DNSAviso; got != aviso {
+		t.Fatalf("Vista.DNSAviso = %q", got)
+	}
+	s.o.DNSAviso = nil
+	if got := s.vista().DNSAviso; got != "" {
+		t.Fatalf("without a checker the warning must be empty, got %q", got)
+	}
+}
+
+// B-12: when ns does not answer, the dashboard shows the warning as an alert, and only then.
+func TestDashboardShowsTheDNSWarning(t *testing.T) {
+	tmpl := template.Must(template.ParseFS(archivos, "templates/*.html"))
+	render := func(aviso string) string {
+		var buf bytes.Buffer
+		if err := tmpl.ExecuteTemplate(&buf, "dashboard.html", Vista{DNSAviso: aviso, Errores: map[string]string{}}); err != nil {
+			t.Fatal(err)
+		}
+		return buf.String()
+	}
+	con := render("no se contacta la VM DNS en 192.168.10.10")
+	if !strings.Contains(con, `<p class="aviso-dns" role="alert">no se contacta la VM DNS en 192.168.10.10</p>`) {
+		t.Fatal("the DNS warning must be shown as an alert")
+	}
+	if strings.Contains(render(""), `class="aviso-dns"`) {
+		t.Fatal("without a problem there must be no DNS warning")
+	}
+}

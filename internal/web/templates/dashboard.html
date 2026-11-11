@@ -103,9 +103,9 @@
       border-radius: 999px;
     }
 
-    .aviso, .error { margin: 0 0 16px; padding: 11px 14px; border: 1px solid; border-radius: 10px; }
+    .aviso, .error, .aviso-dns { margin: 0 0 16px; padding: 11px 14px; border: 1px solid; border-radius: 10px; }
     .aviso { color: var(--ok); background: var(--ok-fondo); border-color: var(--ok-linea); }
-    .error { color: var(--peligro); background: var(--peligro-fondo); border-color: var(--peligro-linea); }
+    .error, .aviso-dns { color: var(--peligro); background: var(--peligro-fondo); border-color: var(--peligro-linea); }
     .progreso {
       margin: 16px 0 0;
       padding: 11px 14px;
@@ -234,7 +234,9 @@
       background: #fafbfe;
       border-bottom: 1px solid var(--linea);
     }
-    td { padding: 12px 14px; vertical-align: middle; border-bottom: 1px solid var(--linea); overflow-wrap: anywhere; }
+    td { padding: 12px 14px; vertical-align: middle; border-bottom: 1px solid var(--linea); }
+    /* Only the link may break anywhere: on the rest it shrinks columns to one letter. */
+    .ip, .estado, .acciones button { white-space: nowrap; }
     tbody tr:last-child td { border-bottom: 0; }
     tbody tr:hover { background: #fafbff; }
     a { color: var(--marca); text-decoration: none; }
@@ -344,6 +346,7 @@
       </div>
     </header>
 
+    {{with .DNSAviso}}<p class="aviso-dns" role="alert">{{.}}</p>{{end}}
     {{with .Aviso}}<p class="aviso" role="status">{{.}}</p>{{end}}
 
     <ol class="pasos" aria-label="Cómo funciona">
