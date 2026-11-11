@@ -5,12 +5,11 @@
 **Repositorio:** `github.com/lyc4nthrope/httpaas-paginas-web`
 **Fecha:** noviembre de 2026
 
-> **Estado de este documento (borrador).** Las Partes A y B están desarrolladas. Faltan
-> la sección de C, la ejecución real de la prueba completa (necesita la plantilla de C)
-> y el banner B-12 (A7 ya existe en la rama `integracion`, PR #6). Las capturas B-09 a B-11 se
-> toman con el dashboard y se insertan en `docs/capturas/` o se enlazan desde el
-> documento donde se lleven. Los huecos están marcados con **Pendiente (A)** o
-> **Pendiente (C)**.
+> **Estado de este documento (borrador).** Las Partes A y B están desarrolladas y sus
+> capturas están en `docs/capturas/`. Falta la sección de C y sus capturas. La prueba
+> completa en modo real ya se ejecutó (26 OK, 0 FALLA, 2026-11-11) y el banner B-12
+> está tomado; la integración final de las tres partes vive en la rama `integracion`
+> (PR #6). Los huecos están marcados con **Pendiente (C)**.
 
 ---
 
@@ -637,13 +636,14 @@ muestra que la pantalla explica qué hace.
 
 ![B-10 — dos instancias](capturas/B-10.png)
 
-**B-10 — Dos instancias, como en la figura.** `paisajes` en `.30` y `negocios` en
-`.31`, con enlace, IP/24, VM, fecha, estado `lista` y Eliminar. Importa porque es el
-estado normal de la aplicación y coincide con la figura del enunciado.
+**B-10 — Dos instancias en el dashboard.** `paisajes` en `.30` y `negocios` en
+`.31`, con enlace, IP/24, VM, fecha, estado y Eliminar. `negocios` está en `lista` y
+`paisajes` en `perdida` porque su VM se eliminó a mano: `Reconciliar` lo detectó al
+arrancar. Importa porque muestra el estado normal y la detección de VMs desaparecidas.
 
-![B-11 — vista a 360 px](capturas/B-11.png)
+![B-11 — vista de celular](capturas/B-11.png)
 
-**B-11 — El dashboard a 360 px.** La tabla pasa a tarjetas y el formulario se apila.
+**B-11 — El dashboard a 400 px.** La tabla pasa a tarjetas y el formulario se apila.
 Importa porque demuestra que la pantalla es usable en un celular, no solo en
 escritorio.
 
@@ -791,7 +791,9 @@ criterio para aceptar una sugerencia fue siempre el mismo: que se pudiera compro
 
 - **Cristhian (Parte A):** la usé para planear las fases, escribir el código y las pruebas, y para revisiones independientes del código propio y de los compañeros. Cada hallazgo se verificó contra el código antes de corregirlo, cada corrección tiene una prueba que fallaba antes, y las mutaciones comprobaron que esas pruebas protegen lo que dicen.
 
-> **Pendiente (B y C):** una línea sobre cómo la usó cada uno.
+- **Daniel (Parte B):** la usé para planear las fases del DNS y del dashboard, para escribir las pruebas de `internal/dns` y de la vista, y para revisar el contrato con A y C. Cada sugerencia se contrastó contra la VM `ns`, `dig`/`named-checkzone` y las pruebas antes de aceptarla; las capturas B salen de esas ejecuciones.
+
+> **Pendiente (C):** una línea sobre cómo la usó.
 
 ---
 
@@ -823,9 +825,9 @@ importa. Para regenerar el PDF, cualquier editor de Markdown con exportación si
 
 **Checklist antes de entregar.**
 
-- [ ] Secciones de A y C completas.
-- [ ] Capturas P-01, A-01…A-16, B-01…B-12 y C-01…C-12 presentes y en orden.
-- [ ] Problemas de A y C agregados a la sección 7.
-- [ ] Párrafos de aprendizajes de A y C.
-- [ ] Prueba completa H4 ejecutada y adjunta.
+- [x] Sección de A completa.
+- [x] Capturas P-01, A-01…A-16 y B-01…B-12 presentes y en orden.
+- [x] Problemas y aprendizajes de A y B agregados.
+- [x] Prueba completa H4 ejecutada y documentada (26 OK, 0 FALLA).
+- [ ] Sección de C, sus capturas, problemas y aprendizajes.
 - [ ] PDF exportado y revisado por los tres.
