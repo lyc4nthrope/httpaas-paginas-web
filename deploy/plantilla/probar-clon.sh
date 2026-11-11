@@ -1,4 +1,5 @@
 #!/bin/bash
+export MSYS_NO_PATHCONV=1
 # Runs, on the HOST, the same thing the app does with every clone, but on the template VM
 # itself and inside a snapshot: it writes the guest properties, boots the VM and checks
 # that httpaas-firstboot reaches "listo" with the new name and IP, and that SSH and Apache
@@ -37,7 +38,9 @@ vbox() {
 info >/dev/null || fallar "no existe la VM '$VM'."
 case "$(estado_vm)" in poweroff|aborted) ;; *) fallar "la VM '$VM' debe estar apagada (está en '$(estado_vm)')." ;; esac
 VBoxManage snapshot "$VM" list --machinereadable 2>/dev/null | grep -q "=\"$SNAP\"$" && fallar "ya existe el snapshot '$SNAP': bórralo primero (VBoxManage snapshot $VM delete $SNAP)."
-if ! info | grep -q -E '^"[^"]*-0-0"="/'; then fallar "la VM '$VM' no tiene disco conectado."; fi
+
+if ! info | grep -q -E '^"[^"]*-0-0"="'; then fallar "la VM '$VM' no tiene disco conectado."; fi
+
 
 limpiar() {
   echo "== Dejando la plantilla como estaba"
