@@ -234,7 +234,9 @@
       background: #fafbfe;
       border-bottom: 1px solid var(--linea);
     }
-    td { padding: 12px 14px; vertical-align: middle; border-bottom: 1px solid var(--linea); overflow-wrap: anywhere; }
+    td { padding: 12px 14px; vertical-align: middle; border-bottom: 1px solid var(--linea); }
+    /* Only the link may break anywhere: on the rest it shrinks columns to one letter. */
+    .ip, .estado, .acciones button { white-space: nowrap; }
     tbody tr:last-child td { border-bottom: 0; }
     tbody tr:hover { background: #fafbff; }
     a { color: var(--marca); text-decoration: none; }
