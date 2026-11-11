@@ -21,6 +21,7 @@ import (
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/dns"
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/executor"
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/instancias"
+	"github.com/lyc4nthrope/httpaas-paginas-web/internal/oplog"
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/publicar"
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/puertos"
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/vbox"
@@ -112,8 +113,13 @@ func construir(ctx context.Context, cfg config.Config, simular bool) (http.Handl
 	if err != nil {
 		return nil, nil, err
 	}
+	// One JSON line per operation, with every command it ran (logs/operaciones.jsonl).
+	registro, err := oplog.Open(cfg.Logs)
+	if err != nil {
+		return nil, nil, err
+	}
 	svc := instancias.Nuevo(instancias.Opciones{
-		Hipervisor: hip, DNS: zona, Publicador: pub, Almacen: alm, Olvidar: olvidar,
+		Hipervisor: hip, DNS: zona, Publicador: pub, Almacen: alm, Olvidar: olvidar, Registro: registro,
 		Max: cfg.MaxInstancias, Prefijo: cfg.Red.Prefijo,
 	})
 	if err := svc.Reconciliar(ctx); err != nil {

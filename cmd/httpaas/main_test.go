@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/config"
 )
@@ -47,6 +48,7 @@ func TestRealModeServes(t *testing.T) {
 	cfg.SSH.KnownHosts = filepath.Join(dir, "known_hosts")
 	cfg.VBox.DiscoBase = filepath.Join(dir, "ApacheServer.vdi")
 	cfg.Datos = filepath.Join(dir, "instancias.json")
+	cfg.Logs = filepath.Join(dir, "logs")
 	cfg.DNS.IP = "127.0.0.2" // nothing answers there: the ns warning must appear, not a crash
 	cfg.VBox.VBoxManage = filepath.Join(dir, "VBoxManage")
 	if err := os.WriteFile(cfg.VBox.VBoxManage, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil { // "no VMs"
@@ -108,4 +110,34 @@ func TestHostsPermitidos(t *testing.T) {
 			t.Errorf("hostsPermitidos(%q) = %q, want %q", listen, got, want)
 		}
 	}
+}
+
+// The service writes one line per operation to logs/operaciones.jsonl (phase A3).
+func TestOperationsAreLogged(t *testing.T) {
+	cfg := ejemplo(t)
+	t.Chdir(t.TempDir())
+	ctx, cancel := context.WithCancel(context.Background())
+	h, trabajador, err := construir(ctx, cfg, true)
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	defer func() { cancel(); <-trabajador }()
+	req := httptest.NewRequest(http.MethodPost, "/instancias", strings.NewReader("nombre=web"))
+	req.Host = cfg.Listen
+	req.Header.Set("Origin", "http://"+cfg.Listen)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("create: code=%d %s", rec.Code, rec.Body.String())
+	}
+	ruta := filepath.Join(cfg.Logs, "operaciones.jsonl")
+	for fin := time.Now().Add(20 * time.Second); time.Now().Before(fin); time.Sleep(100 * time.Millisecond) {
+		if b, _ := os.ReadFile(ruta); strings.Contains(string(b), `"action":"Crear instancia"`) && strings.Contains(string(b), `"target":"web"`) {
+			return
+		}
+	}
+	b, _ := os.ReadFile(ruta)
+	t.Fatalf("the create operation was not logged in %s: %q", ruta, b)
 }

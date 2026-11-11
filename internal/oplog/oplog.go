@@ -41,6 +41,7 @@ type Step struct {
 	DurationMS int64  `json:"duration_ms"`
 	Error      string `json:"error,omitempty"`     // channel error (VM off, timeout, ...)
 	Truncated  bool   `json:"truncated,omitempty"` // output longer than MaxOutput
+	Repeats    int    `json:"repeats,omitempty"`   // identical consecutive runs merged into this step
 }
 
 // Entry is one operation requested from the interface.
@@ -51,7 +52,8 @@ type Entry struct {
 	Target  string    `json:"target"`  // instance name, or "ns" for the DNS server
 	Channel string    `json:"channel"` // "SSH", "VBoxManage", "Simulado" or "Sin conexión"
 	OK      bool      `json:"ok"`
-	Message string    `json:"message"` // result explained for the user
+	Message string    `json:"message"`          // result explained for the user
+	Detail  string    `json:"detail,omitempty"` // technical cause of a failure, for diagnosis
 	Steps   []Step    `json:"steps,omitempty"`
 
 	// NotSaved marks an entry that could not be written to disk (kept only in memory).

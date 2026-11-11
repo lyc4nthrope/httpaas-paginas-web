@@ -15,6 +15,7 @@ import (
 
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/almacen"
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/dominio"
+	"github.com/lyc4nthrope/httpaas-paginas-web/internal/oplog"
 	"github.com/lyc4nthrope/httpaas-paginas-web/internal/puertos"
 )
 
@@ -38,6 +39,8 @@ type Opciones struct {
 	Almacen    Almacen
 	Max        int // maximum instances at once
 	Prefijo    int // network prefix, e.g. 24
+	// Registro receives one entry per job, with every command it ran (optional).
+	Registro Bitacora
 	// Olvidar removes the instance's host key from the app's known_hosts (decision D8).
 	Olvidar func(ctx context.Context, ip string) error
 	// TiempoCrear bounds how long a VM may take to report "listo". Default 3 minutes.
@@ -49,7 +52,22 @@ type Opciones struct {
 	Logf  func(format string, args ...any)
 }
 
+// Bitacora is the operation log the service writes to (implemented by *oplog.Log).
+type Bitacora interface {
+	Add(e oplog.Entry) (oplog.Entry, error)
+}
+
+// resultado is how a job ended: the message the user sees and, on failure, the
+// technical cause, which only goes to the logs.
+type resultado struct {
+	ok      bool
+	mensaje string
+	causa   error
+}
+
 type tipoTrabajo int
+
+var acciones = map[tipoTrabajo]string{crear: "Crear instancia", publicar: "Publicar contenido", eliminar: "Eliminar instancia"}
 
 const (
 	crear tipoTrabajo = iota
@@ -109,14 +127,17 @@ func (s *Servicio) siguiente(ctx context.Context) bool {
 	case t := <-s.trabajos:
 		ctx, cancel := context.WithTimeout(ctx, s.o.TiempoTrabajo)
 		defer cancel()
+		ctx, grabadora := oplog.ConGrabadora(ctx)
+		var r resultado
 		switch t.tipo {
 		case crear:
-			s.crear(ctx, t.nombre)
+			r = s.crear(ctx, t.nombre)
 		case publicar:
-			s.publicar(ctx, t.nombre, t.zip)
+			r = s.publicar(ctx, t.nombre, t.zip)
 		case eliminar:
-			s.eliminar(ctx, t.nombre)
+			r = s.eliminar(ctx, t.nombre)
 		}
+		s.registrar(t, r, grabadora)
 		return true
 	}
 }
@@ -219,44 +240,41 @@ func (s *Servicio) Reconciliar(ctx context.Context) error {
 	return nil
 }
 
-func (s *Servicio) crear(ctx context.Context, nombre string) {
+func (s *Servicio) crear(ctx context.Context, nombre string) resultado {
 	inst, ok := s.o.Almacen.Obtener(nombre)
 	if !ok {
-		return
+		return resultado{mensaje: "la instancia ya no existe"}
 	}
 	spec := puertos.SpecVM{Nombre: nombre, IP: inst.IP, Prefijo: s.o.Prefijo}
 	if err := s.o.Hipervisor.Crear(ctx, spec); err != nil {
-		s.fallar(nombre, dominio.Error, "no se pudo crear la máquina virtual", err)
-		return
+		return s.fallar(nombre, dominio.Error, "no se pudo crear la máquina virtual", err)
 	}
 	espera, cancel := context.WithTimeout(ctx, s.o.TiempoCrear)
 	defer cancel()
 	if err := s.o.Hipervisor.EsperarLista(espera, nombre); err != nil {
-		s.fallar(nombre, dominio.Error, "la máquina virtual no terminó de configurarse", err)
-		return
+		return s.fallar(nombre, dominio.Error, "la máquina virtual no terminó de configurarse", err)
 	}
 	if err := s.o.DNS.Agregar(ctx, nombre, inst.IP); err != nil {
-		s.fallar(nombre, dominio.Error, "no se pudo registrar el nombre en el DNS", err)
-		return
+		return s.fallar(nombre, dominio.Error, "no se pudo registrar el nombre en el DNS", err)
 	}
 	ip, err := s.o.DNS.Resolver(ctx, nombre)
 	if err == nil && ip != inst.IP {
 		err = fmt.Errorf("resolves to %s, want %s", ip, inst.IP)
 	}
 	if err != nil {
-		s.fallar(nombre, dominio.Error, "el DNS no resuelve el nombre a la IP de la instancia", err)
-		return
+		return s.fallar(nombre, dominio.Error, "el DNS no resuelve el nombre a la IP de la instancia", err)
 	}
 	s.actualizar(nombre, func(i *dominio.Instancia) { i.Estado, i.Error = dominio.Lista, "" })
+	return resultado{ok: true, mensaje: "instancia creada en " + inst.IP + " y registrada en el DNS"}
 }
 
 // publicar keeps the instance Lista even when the deployment fails: Apache still serves
 // the previous content and the user can try again. The error is shown on the dashboard.
-func (s *Servicio) publicar(ctx context.Context, nombre, zip string) {
+func (s *Servicio) publicar(ctx context.Context, nombre, zip string) resultado {
 	defer os.Remove(zip)
 	inst, ok := s.o.Almacen.Obtener(nombre)
 	if !ok {
-		return
+		return resultado{mensaje: "la instancia ya no existe"}
 	}
 	err := s.o.Publicador.Publicar(ctx, nombre, inst.IP, zip)
 	msg := ""
@@ -274,31 +292,58 @@ func (s *Servicio) publicar(ctx context.Context, nombre, zip string) {
 		}
 		i.Estado, i.Error = dominio.Lista, msg
 	})
+	if err != nil {
+		return resultado{mensaje: msg, causa: err}
+	}
+	return resultado{ok: true, mensaje: "contenido publicado"}
 }
 
 // eliminar tries every step even if one fails. Each step is idempotent, so when
 // something fails the instance stays in Error and deleting it again is safe.
-func (s *Servicio) eliminar(ctx context.Context, nombre string) {
+func (s *Servicio) eliminar(ctx context.Context, nombre string) resultado {
 	inst, ok := s.o.Almacen.Obtener(nombre)
 	if !ok {
-		return
+		return resultado{mensaje: "la instancia ya no existe"}
 	}
 	var fallos []string
+	var causas []error
 	paso := func(que string, err error) {
 		if err != nil {
 			s.o.Logf("eliminar %s: %s: %v", nombre, que, err)
 			fallos = append(fallos, que)
+			causas = append(causas, fmt.Errorf("%s: %w", que, err))
 		}
 	}
 	paso("quitar el nombre del DNS", s.o.DNS.Quitar(ctx, nombre))
 	paso("borrar la máquina virtual", s.o.Hipervisor.Eliminar(ctx, nombre))
 	paso("olvidar la llave SSH", s.o.Olvidar(ctx, inst.IP))
 	if len(fallos) > 0 {
-		s.fallar(nombre, dominio.Error, "no se pudo eliminar por completo (falló: "+strings.Join(fallos, ", ")+"); vuelve a intentarlo", nil)
-		return
+		r := s.fallar(nombre, dominio.Error, "no se pudo eliminar por completo (falló: "+strings.Join(fallos, ", ")+"); vuelve a intentarlo", nil)
+		r.causa = errors.Join(causas...)
+		return r
 	}
 	if err := s.o.Almacen.Quitar(nombre); err != nil {
-		s.fallar(nombre, dominio.Error, "se eliminó la máquina virtual, pero no se pudo actualizar el registro de instancias; vuelve a intentarlo", err)
+		return s.fallar(nombre, dominio.Error, "se eliminó la máquina virtual, pero no se pudo actualizar el registro de instancias; vuelve a intentarlo", err)
+	}
+	return resultado{ok: true, mensaje: "instancia eliminada: máquina virtual, nombre DNS y llave SSH"}
+}
+
+// registrar writes one log entry for the job. A log that cannot be written never
+// changes the job's result: it is reported and the service goes on.
+func (s *Servicio) registrar(t trabajo, r resultado, g *oplog.Grabadora) {
+	if s.o.Registro == nil {
+		return
+	}
+	e := oplog.Entry{Action: acciones[t.tipo], Target: t.nombre, Channel: g.Canales(), OK: r.ok,
+		Message: r.mensaje, Steps: g.Pasos()}
+	if e.Channel == "" {
+		e.Channel = "Sin comandos"
+	}
+	if r.causa != nil {
+		e.Detail = r.causa.Error()
+	}
+	if _, err := s.o.Registro.Add(e); err != nil {
+		s.o.Logf("registro de operaciones: %v", err)
 	}
 }
 
@@ -339,11 +384,12 @@ func (s *Servicio) cambiarEstado(nombre string, permitido func(dominio.Estado) b
 
 // fallar records a failure: msg is for the user (shown on the dashboard), err (optional)
 // is the technical detail and goes only to the log.
-func (s *Servicio) fallar(nombre string, estado dominio.Estado, msg string, err error) {
+func (s *Servicio) fallar(nombre string, estado dominio.Estado, msg string, err error) resultado {
 	if err != nil {
 		s.o.Logf("%s: %s: %v", nombre, msg, err)
 	}
 	s.actualizar(nombre, func(i *dominio.Instancia) { i.Estado, i.Error = estado, msg })
+	return resultado{mensaje: msg, causa: err}
 }
 
 func (s *Servicio) actualizar(nombre string, cambio func(*dominio.Instancia)) {
