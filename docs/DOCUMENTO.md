@@ -553,7 +553,7 @@ El aviso de `ns` (B6.5) se revisa cada 30 s en segundo plano y llega a la planti
 
 ![A-03 — registro de operaciones](capturas/A-03.png)
 
-**A-03 — Registro de operaciones.** **Pendiente (A).****
+**A-03 — Una línea de `logs/operaciones.jsonl`.** La publicación de `paisajes`: cada comando (`scp` y `ssh`) con su salida, su código de salida y su duración. El archivo tiene permisos 600, porque la salida puede tener datos sensibles. Importa porque deja la información técnica para diagnosticar un fallo sin repetirlo.**
 
 ![A-04 — modo simulado](capturas/A-04.png)
 
