@@ -103,9 +103,9 @@
       border-radius: 999px;
     }
 
-    .aviso, .error { margin: 0 0 16px; padding: 11px 14px; border: 1px solid; border-radius: 10px; }
+    .aviso, .error, .aviso-dns { margin: 0 0 16px; padding: 11px 14px; border: 1px solid; border-radius: 10px; }
     .aviso { color: var(--ok); background: var(--ok-fondo); border-color: var(--ok-linea); }
-    .error { color: var(--peligro); background: var(--peligro-fondo); border-color: var(--peligro-linea); }
+    .error, .aviso-dns { color: var(--peligro); background: var(--peligro-fondo); border-color: var(--peligro-linea); }
     .progreso {
       margin: 16px 0 0;
       padding: 11px 14px;
@@ -344,6 +344,7 @@
       </div>
     </header>
 
+    {{with .DNSAviso}}<p class="aviso-dns" role="alert">{{.}}</p>{{end}}
     {{with .Aviso}}<p class="aviso" role="status">{{.}}</p>{{end}}
 
     <ol class="pasos" aria-label="Cómo funciona">
