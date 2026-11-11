@@ -545,20 +545,43 @@ El aviso de `ns` (B6.5) se revisa cada 30 s en segundo plano y llega a la planti
 
 ![A-01 — make check](capturas/A-01.png)
 
-| Captura | Qué se ve | Por qué importa |
-|---|---|---|
-| A-01 | `make check` en verde: `gofmt`, `go vet`, pruebas con `-race` y compilación | Es la puerta de calidad antes de cada commit |
-| A-02 | El workflow `check` en verde en un PR de GitHub | Nadie puede integrar código que no compila ni pasa las pruebas |
-| A-03 | Una línea de `logs/operaciones.jsonl` con el comando, la salida, el código y la duración | Es el "conservar información técnica para el diagnóstico" |
-| A-04 | Dashboard en modo simulado con una instancia en `creando` | La web responde al instante; el trabajo corre en la cola |
-| A-05 | Un nombre inválido (`a;rm`) rechazado con 422 junto al campo | Se valida antes de ejecutar nada |
-| A-06 | `VBoxManage list vms` con la instancia creada desde la app | La VM la creó la app, sin intervención |
-| A-07 | `VBoxManage showmediuminfo` del disco base con su hijo diferencial | El clon usa el disco multiconexión |
-| A-08 | Después de Eliminar: la VM ya no está y `ApacheServer.vdi` sí | Eliminar no toca el disco base |
-| A-09 | El formulario con `paisajes` y `paisajes.zip` | El flujo de la figura del enunciado |
-| A-10 | Dashboard con la instancia `lista` y su enlace | El resultado que ve el usuario |
+**A-01 — `make check` en verde.** `gofmt`, `go vet`, las pruebas con `-race` y la compilación pasan. Importa porque es la puerta de calidad antes de cada commit.**
 
-A-01 a A-05 se toman con `make check`, la CI y `make simular`. A-06 a A-10 necesitan la plantilla de la Parte C.
+![A-02 — CI en GitHub](capturas/A-02.png)
+
+**A-02 — El workflow `check` en verde en el PR #6.** Corre `make check` en cada PR. Importa porque nadie puede integrar código que no compila o no pasa las pruebas.**
+
+![A-03 — registro de operaciones](capturas/A-03.png)
+
+**A-03 — Registro de operaciones.** **Pendiente (A).****
+
+![A-04 — modo simulado](capturas/A-04.png)
+
+**A-04 — Dashboard en modo simulado con `paisajes` en `creando`.** La página responde al instante y el trabajo corre en la cola. Importa porque la interfaz nunca se bloquea esperando a VirtualBox.**
+
+![A-05 — nombre inválido](capturas/A-05.png)
+
+**A-05 — El nombre `a;rm` rechazado junto al campo (HTTP 422).** Importa porque se valida antes de ejecutar nada: un nombre con `;` nunca llega a un comando.**
+
+![A-06 — VBoxManage list vms](capturas/A-06.png)
+
+**A-06 — `VBoxManage list vms` con `paisajes` y `negocios`.** Las dos VMs las creó la app, sin intervención.**
+
+![A-07 — disco base con sus hijos](capturas/A-07.png)
+
+**A-07 — El disco base en multiconexión con dos hijos diferenciales.** Uno por instancia. Importa porque cada clon escribe solo en su hijo y el disco base no cambia.**
+
+![A-08 — después de Eliminar](capturas/A-08.png)
+
+**A-08 — Después de eliminar `paisajes` desde la app.** La VM ya no está, el nombre ya no resuelve y `ApacheServer.vdi` sigue ahí. Importa porque Eliminar no toca el disco base.**
+
+![A-09 — formulario](capturas/A-09.png)
+
+**A-09 — El formulario con `paisajes` y `paisajes.zip`, antes de pulsar Publicar.** Es el flujo de la figura del enunciado.**
+
+![A-10 — instancias listas](capturas/A-10.png)
+
+**A-10 — Las instancias en `lista`, cada una con su enlace.** Es el resultado que ve el usuario.**
 
 ### B7. Dashboard — ✅ 2026-11-09
 
@@ -647,14 +670,29 @@ fallo de infraestructura en una acción concreta para el usuario.
 
 Imprime `OK`, `FALLA` u `omitido` por paso y termina con código distinto de 0 si algo falla. Con `SIMULADO=1` corre contra `make simular` y omite lo que necesita VMs (2026-11-10: **17 OK, 0 FALLA, 3 omitidos**). En modo real, con `ns` y el disco de la Parte C (2026-11-11): **26 OK, 0 FALLA, 0 omitidos** (A-16).
 
-| Captura | Qué se ve | Por qué importa |
-|---|---|---|
-| A-11 | Dos instancias (`paisajes` y `negocios`) `lista` en el dashboard | Varias instancias a la vez, cada una con su IP |
-| A-12 | La resolución de los dos nombres en `ns` | El registro DNS fue automático |
-| A-13 | La página de `paisajes`, abierta desde su enlace en una pestaña nueva | El sitio del zip, publicado y servido por su nombre |
-| A-14 | La página de `negocios` (el zip trae una carpeta) | La regla de la carpeta única funciona de punta a punta |
-| A-15 | El rechazo de `zipslip.zip` en el formulario | La validación protege antes de tocar la VM |
-| A-16 | La salida de `scripts/prueba-completa.sh` con todos los pasos `OK` | La prueba completa del enunciado, de una sola vez |
+![A-11 — dos instancias](capturas/A-11.png)
+
+**A-11 — Dos instancias (`paisajes` y `negocios`) en `lista`.** Varias instancias a la vez, cada una con su IP.**
+
+![A-12 — resolución en ns](capturas/A-12.png)
+
+**A-12 — La resolución de los dos nombres en `ns` y en el host.** El registro DNS fue automático.**
+
+![A-13 — página de paisajes](capturas/A-13.png)
+
+**A-13 — La página de `paisajes`, abierta desde su enlace en una pestaña nueva.** El sitio del zip, publicado y servido por su nombre.**
+
+![A-14 — página de negocios](capturas/A-14.png)
+
+**A-14 — La página de `negocios` (el zip trae una carpeta).** La regla de la carpeta única funciona de punta a punta.**
+
+![A-15 — rechazo de zipslip.zip](capturas/A-15.png)
+
+**A-15 — El rechazo de `zipslip.zip` en el formulario.** Trae la ruta `../../tmp/x`. Importa porque la validación protege antes de tocar la VM.**
+
+![A-16 — prueba completa](capturas/A-16.png)
+
+**A-16 — La salida de `scripts/prueba-completa.sh` en modo real: 26 OK, 0 FALLA.** La prueba completa del enunciado, de una sola vez.**
 
 ---
 
