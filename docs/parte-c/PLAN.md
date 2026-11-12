@@ -43,7 +43,7 @@ La "imagen dorada" de la nube: una VM Apache que, al clonarse, se configura sola
 
 ## Fases
 
-> **Estado 2026-11-11.** C0 está cumplida (red host-only y contrato) y C1–C8 están implementadas e integradas en `main` (`deploy/plantilla/`, `internal/publicar/` y el diagrama `docs/Arquitectura.png`). La evidencia por fase está en el documento entregado, que se envía aparte; en el repositorio solo quedan las capturas de A y B. Ver el Anexo B del [documento del repositorio](../DOCUMENTO.md).
+> **Estado 2026-11-11.** C0 está cumplida (red host-only y contrato) y C1–C8 están implementadas e integradas en `main` (`deploy/plantilla/`, `internal/publicar/` y el diagrama `docs/Arquitectura.png`). La evidencia por fase está en el documento entregado, que se envía aparte; en el repositorio solo quedan las capturas de A y B. Ver el [documento del repositorio](../DOCUMENTO.md).
 
 ### C0. Preparación ✅ (H0; P-01 y contrato en `dev`)
 Hacer P1–P4 del [plan general §7](../PLAN.md#7-preparación-de-cada-pc-los-tres-h0). Revisar y aprobar el PR del contrato (A1).

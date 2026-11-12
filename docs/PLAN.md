@@ -407,7 +407,7 @@ Imprime `OK`/`FALLA` por paso y termina con código distinto de 0 si algo falló
 | `*.cloud.local` no resuelve en el navegador del host | `getent hosts ns.cloud.local` vacío | Usar a `ns` como DNS principal del host, con recursión y forwarders a internet (B4). Último recurso: el dashboard también muestra la IP |
 | `unregistervm --delete` borra el disco base | `ApacheServer.vdi` desaparece en la prueba de A6 | Respaldo de C5 (`clonemedium`). Cambiar Eliminar por: quitar el disco → `closemedium` del diferencial → `unregistervm` sin `--delete` |
 | Poca RAM o poco disco | El host se pone lento | `max_instancias` en 2; instancias con 384 MB |
-| Un integrante se atrasa | Hito no cumplido | En la reunión del hito se reparte su fase pendiente; los Fakes permiten seguir mientras tanto |
+| Un integrante se atrasa | Hito no cumplido | En la reunión del hito se reparte su fase atrasada; los Fakes permiten seguir mientras tanto |
 
 ---
 

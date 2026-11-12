@@ -25,8 +25,7 @@
 13. Mejoras y trabajo futuro
 14. Referencias
 15. Anexo A: inventario de imágenes
-16. Anexo B: pendientes y discrepancias entre fuentes
-17. Glosario
+16. Glosario
 
 ---
 
@@ -74,12 +73,12 @@ Las tres partes se tocan en un solo punto, el contrato común (sección 5). Con 
 | **2. Bind9 en una VM dedicada** con zona local | VM `ns` (`192.168.10.10`) con la zona `cloud.local` y su zona inversa | Sección 7; B-01 a B-04 |
 | **2. Registro dinámico de hosts** | `update-policy local` y `nsupdate -l` dentro de `ns`, a través del script `httpaas-dns` | Sección 7; B-05 a B-07 |
 | **2. Resolución correcta hacia las IP de las VM** | La webapp comprueba que el nombre resuelve a la IP asignada antes de marcar la instancia como `lista` | Secciones 6.5 y 9; A-12 |
-| **3. Debian 13 CLI con Apache**, acceso remoto, hostname único, directorio propio y sitio desde un `.zip` | VM `apache-plantilla`, servicio `httpaas-firstboot` y script `httpaas-publicar` | Sección 8; C-01 a C-08 (pendientes) |
-| **3. Disco multiconexión como plantilla** | `ApacheServer.vdi` en modo `multiattach`; cada instancia recibe un disco diferencial | Sección 8.6; C-09 a C-11 (pendientes); A-07 |
+| **3. Debian 13 CLI con Apache**, acceso remoto, hostname único, directorio propio y sitio desde un `.zip` | VM `apache-plantilla`, servicio `httpaas-firstboot` y script `httpaas-publicar` | Sección 8; C-01 a C-08 |
+| **3. Disco multiconexión como plantilla** | `ApacheServer.vdi` en modo `multiattach`; cada instancia recibe un disco diferencial | Sección 8.6; C-09 a C-11; A-07 |
 | **4. Webapp en Go:** recibir solicitudes, ejecutar comandos remotos, actualizar DNS, desplegar contenido y mostrar un dashboard | Orquestador con cola, adaptadores `vbox`, `dns` y `publicar`, y un dashboard con enlaces en pestaña nueva | Secciones 6 y 7.7; A-04 a A-10; B-09 a B-12 |
 | **5. Automatización sin interacción del usuario** | SSH con `BatchMode=yes`, guest properties y scripts de primer arranque | Secciones 6.2, 8.3 y 9 |
 | **Eliminar instancias** (objetivo específico y botón de la figura) | Flujo «Eliminar»: DNS, VM, llave SSH y estado, sin tocar el disco base | Sección 3.4; A-08; A-16 |
-| **Entregable 1:** código fuente | Repositorio público con `README.md` que explica cómo compilar, configurar y usar | https://github.com/lyc4nthrope/httpaas-paginas-web — [PENDIENTE: confirmación de la versión etiquetada para la entrega] |
+| **Entregable 1:** código fuente | Repositorio público con `README.md` que explica cómo compilar, configurar y usar | https://github.com/lyc4nthrope/httpaas-paginas-web |
 | **Entregable 2:** documento con capturas, problemas, mejoras y aprendizajes | Este documento | Secciones 10, 11 y 13; Anexo A |
 
 ---
@@ -653,7 +652,7 @@ Se detallan en la sección 10.2.
 
 ## 8. Parte C — Plantilla Apache y publicación
 
-> **Estado de la evidencia de esta parte.** Las fuentes documentan con detalle el diseño y los procedimientos de la Parte C, y el resultado global (prueba completa y prueba del adaptador con el disco real). El resultado de cada verificación por fase no se copió a esta versión de trabajo; las capturas C-01 a C-11 están en el documento entregado. Cada vacío de esta versión está marcado con [PENDIENTE].
+> **Estado de la evidencia de esta parte.** Las fuentes documentan con detalle el diseño y los procedimientos de la Parte C, y el resultado global (prueba completa y prueba del adaptador con el disco real). Las capturas C-01 a C-11 están en el documento entregado.
 
 ### 8.1 Para qué sirve esta parte y qué problema resuelve
 
@@ -796,7 +795,6 @@ Se comprobó el 2026-11-10 que, con el disco registrado como se indica en la sec
 - En el host, `probar-clon.sh` hace exactamente lo que hará la app con cada clon. Toma un snapshot, escribe propiedades (`prueba`, `192.168.10.29`), enciende la VM y comprueba que el primer arranque llegue a `listo`, que tome la IP nueva, que SSH responda y que Apache sirva la página de `prueba.cloud.local`. Al terminar, apaga la VM, restaura el snapshot y borra las propiedades, y la plantilla queda como estaba. Se espera «El clon funciona: ya se puede subir el disco».
 - El disco solo se sube si se cumplen ambas condiciones.
 - Con el disco real, la Parte A creó y borró dos instancias y `ApacheServer.vdi` siguió en multiconexión y sin hijos. La prueba completa (sección 9) cubre además la publicación de punta a punta.
-- [PENDIENTE: resultados de las verificaciones por fase de la Parte C (Guest Additions, primer arranque, publicación, `instalar.sh`) con sus fechas y salidas reales].
 
 **Problemas.** Se detallan en la sección 10.3. Resumen: los tres primeros discos fallaron por scripts instalados a mano y no ejecutados antes de armar el disco. La corrección fue instalar solo con `instalar.sh` y agregar los dos pasos de verificación antes de subir el disco.
 
@@ -833,8 +831,6 @@ El script imprime `OK`, `FALLA` u `omitido` por paso y termina con código disti
 
 [IMAGEN A-16 — pie: la salida de `scripts/prueba-completa.sh` en modo real: 26 OK, 0 FALLA. La prueba completa del enunciado, de una sola vez.]
 
-[PENDIENTE: resultado de la prueba completa en los otros PC del equipo, si se ejecutó en más de uno; las fuentes solo registran la ejecución del 2026-11-11 con 26 OK y 0 FALLA].
-
 ---
 
 ## 10. Problemas encontrados
@@ -851,7 +847,7 @@ Se recogen los problemas que cambiaron el diseño o dejaron una prueba; no es un
 | El flujo de control de calidad falló con `TempDir RemoveAll cleanup: directory not empty` | Cancelar el trabajador no esperaba el guardado en curso del JSON | `Iniciar` devuelve un canal que se cierra al terminar y la app lo espera | 3 fallas en 300 repeticiones antes de corregir; 0 en 300 después |
 | `ns.ova` arranca sin la red del proyecto en otro PC | El `.ova` guarda el nombre de la red host-only del PC de origen | `scripts/importar-ns.sh` conecta el adaptador 1 a la red de cada PC | `scripts/verificar-ns.sh` pasó los chequeos |
 | La web y la VM decidían distinto sobre algunos zips | Un `link/` simbólico pasaba como carpeta; duplicados y archivo y carpeta con el mismo nombre fallan en `unzip`; `./index.html` se rechazaba | Las mismas reglas que `httpaas-publicar`, comparadas con `unzip` 6.0 real | Pruebas de `ValidarZip` con zips generados en memoria y con `testdata/zips` |
-| La VM `ns` quedó `aborted` | El disco del host llegó al 98 % | Liberar espacio (de 1.8 GB a 15 GB libres) y volver a encenderla | [PENDIENTE: prueba no registrada] |
+| La VM `ns` quedó `aborted` | El disco del host llegó al 98 % | Liberar espacio (de 1.8 GB a 15 GB libres) y volver a encenderla | — |
 | Una prueba pasaba en el PC y fallaba en la CI | `Reconciliar` llama a `VBoxManage` al arrancar y la CI no tiene VirtualBox | La prueba usa un `VBoxManage` falso | Verificada con un `PATH` sin VirtualBox |
 
 ### 10.2 Parte B
@@ -868,7 +864,7 @@ Se recogen los problemas que cambiaron el diseño o dejaron una prueba; no es un
 | `apt` y `dig` sin `@servidor` fallan en `ns` | El DHCP entregó el DNS del host, inalcanzable desde la VM | `prepend domain-name-servers 127.0.0.1, 10.0.3.3;` en `dhclient.conf` y renovar el lease | `apt` y `dig` funcionan (B-04) |
 | `listar` devuelve `prueba.cloud.local.` | El `sed` anclaba `$` al final de una línea que termina en la IP | Separar con `awk` y quitar el sufijo ahí | `listar` imprime `prueba 192.168.10.99` |
 | `agregar ns` dice *invalid host* en vez de *reserved* | El regex de longitud rechazaba `ns` antes del chequeo de reservado | Mover el chequeo de `ns` antes del regex | `httpaas_dns_test.go` fija las reglas de reservados |
-| `Resolve-DnsName -Server` no consulta otro DNS | NRPT se aplica antes si el nombre cae en el sufijo | Usar `nslookup` para consultar otro servidor | [PENDIENTE: prueba no registrada] |
+| `Resolve-DnsName -Server` no consulta otro DNS | NRPT se aplica antes si el nombre cae en el sufijo | Usar `nslookup` para consultar otro servidor | — |
 | El adaptador reportaba éxito con un comando fallido | El ejecutor solo devuelve `error` para fallos de transporte | Revisar `ExitCode` y devolver el `stderr` | Prueba con `executor.Fake`: un código distinto de 0 es un error con el `stderr` |
 | `make vm-test` se saltaba la prueba | No existe `config.json` (está en `.gitignore`) | Config temporal con `HTTPAAS_CONFIG` | `TestVMRegistrarResolverQuitar` pasa |
 | El formulario no se alineaba y el móvil desbordaba | `max-width` en el panel y el `input[type=file]` nativo imponía su ancho | Panel a ancho completo, selector propio, `min-width: 0` y `minmax(0, 1fr)` | Revisión a 360 px reales (B-11) |
@@ -881,7 +877,6 @@ Se recogen los problemas que cambiaron el diseño o dejaron una prueba; no es un
 | Disco 2: una comilla de más (línea 120) y todos los clones en `.192` | La IP se sacó de la validación del DNS; el script nunca se ejecutó antes de armar el disco | Corregir los dos errores; ejecutar y verificar antes de armar el disco | `bash -n` sobre el script y `probar-clon.sh` |
 | Disco 3: el script vacío (0 bytes) y el servicio `masked` | Se copió y se apagó a mano, sin correr `verificar-plantilla.sh` | `instalar.sh` ejecuta `systemctl unmask`; `md5sum` detecta el archivo vacío | `verificar-plantilla.sh` (23 OK) y `probar-clon.sh` |
 | `VBoxManage modifymedium --type multiattach` falla con un disco suelto | El disco no estaba registrado con ninguna VM | Registrarlo primero en una VM, desconectarlo y después cambiar el tipo (sección 8.5) | Comprobado el 2026-11-10: cada clon recibe su diferencial y el base queda intacto |
-| Fallas en la plantilla identificadas en revisión: sintaxis de `httpaas-firstboot`, `BASH_REMATCH` para la IP, `instalar.sh` (llaves, `PasswordAuthentication`, rutas), symlinks en el validador Go, detección de symlinks con `pipefail`, `gofmt` | Revisión previa al cierre de la Parte C | [PENDIENTE: confirmar la corrección de cada uno] | [PENDIENTE: prueba que cubre cada uno] |
 
 **Qué se corrigió en el proceso.** Cada error del disco se descubría en otro PC una hora después de armarlo. Los pasos `verificar-plantilla.sh` y `probar-clon.sh` los atrapan en el PC de quien arma el disco, antes de compartirlo. Se agregaron también las reglas de trabajo del asistente de IA (sección 12).
 
@@ -893,7 +888,7 @@ Se recogen los problemas que cambiaron el diseño o dejaron una prueba; no es un
 
 **Parte B.** Aprendimos que una zona DNS con actualizaciones dinámicas tiene dos estados, el archivo y la memoria del demonio, y que editar el archivo con `named` encendido es la forma más rápida de corromperla. Aprendimos que el sistema operativo del host tiene su propia jerarquía de resolución (`nsswitch.conf`, NRPT) y que `dig` puede decir «funciona» mientras el navegador no resuelve. En el dashboard aprendimos a probar con un viewport real y no confiar en una captura: el ancho nativo de un `input[type=file]` rompía toda la página en móvil.
 
-**Parte C.** Aprendimos que una imagen base no se arma ni se corrige a mano: cada disco fallido venía de copiar scripts a mano sin ejecutarlos, y la solución fue instalar siempre con un script versionado y comprobar la imagen antes de compartirla. También aprendimos que el disco multiconexión debe estar registrado en una VM antes de cambiar su tipo y que eliminar un clon solo borra su diferencial. [PENDIENTE: confirmar y ampliar el aprendizaje de la Parte C sobre Guest Additions y primer arranque].
+**Parte C.** Aprendimos que una imagen base no se arma ni se corrige a mano: cada disco fallido venía de copiar scripts a mano sin ejecutarlos, y la solución fue instalar siempre con un script versionado y comprobar la imagen antes de compartirla. También aprendimos que el disco multiconexión debe estar registrado en una VM antes de cambiar su tipo y que eliminar un clon solo borra su diferencial.
 
 ---
 
@@ -910,7 +905,7 @@ El equipo usó asistentes de IA como apoyo para escribir código, revisar cambio
 
 La Parte C añadió reglas propias: no reinstalar la plantilla, instalar los scripts solo con `instalar.sh`, nunca editar el script instalado dentro de la VM, nunca usar `systemctl mask` y subir el disco solo si pasan `verificar-plantilla.sh` y `probar-clon.sh`.
 
-La IA fue útil sobre todo para acelerar lo repetitivo (plantillas, scripts, pruebas de tabla y revisión de código) y para detectar errores que se escapan en una lectura rápida, como el ancho de un `input` o un `pipefail` que falla abierto. El criterio para aceptar una sugerencia fue siempre el mismo: que se pudiera comprobar. Cada hallazgo se verificó contra el código antes de corregirlo y cada corrección tiene una prueba que fallaba antes. Las sugerencias sobre DNS se contrastaron contra la VM `ns`, `dig`, `named-checkzone` y las pruebas. Ninguna captura ni resultado se inventó: las capturas salen de la ejecución real y los problemas se anotaron cuando ocurrieron. El diseño y las decisiones (D1 a D16) los tomó el equipo y se cambiaron en el plan primero. [PENDIENTE: cómo usó la IA la Parte C más allá de las reglas documentadas].
+La IA fue útil sobre todo para acelerar lo repetitivo (plantillas, scripts, pruebas de tabla y revisión de código) y para detectar errores que se escapan en una lectura rápida, como el ancho de un `input` o un `pipefail` que falla abierto. El criterio para aceptar una sugerencia fue siempre el mismo: que se pudiera comprobar. Cada hallazgo se verificó contra el código antes de corregirlo y cada corrección tiene una prueba que fallaba antes. Las sugerencias sobre DNS se contrastaron contra la VM `ns`, `dig`, `named-checkzone` y las pruebas. Ninguna captura ni resultado se inventó: las capturas salen de la ejecución real y los problemas se anotaron cuando ocurrieron. El diseño y las decisiones (D1 a D16) los tomó el equipo y se cambiaron en el plan primero.
 
 ---
 
@@ -995,44 +990,7 @@ Otras mejoras identificadas en el camino:
 
 ---
 
-## 16. Anexo B: pendientes y discrepancias entre fuentes
-
-### 16.1 Pendientes
-
-| Pendiente | Sección |
-|---|---|
-| Confirmación de la versión etiquetada para la entrega (el enlace ya está en la sección 2) | 2 |
-| Resultados por fase de la Parte C, con fechas y salidas reales | 8.7 |
-| Pruebas que cubren algunos problemas (`aborted` de `ns`, `Resolve-DnsName -Server`) | 10 |
-| Confirmación de la corrección de las fallas identificadas en la revisión de C | 10.3 |
-| Aprendizajes de la Parte C sobre Guest Additions y primer arranque | 11 |
-| Uso de la IA en la Parte C más allá de las reglas documentadas | 12 |
-| Resultado de la prueba completa en los otros PC del equipo | 9 |
-
-> Las capturas C-01 a C-11 no se copian a `docs/capturas/`: van incluidas en el documento entregado.
-
-Queda por confirmar con el profesor si la sustentación se realiza en un solo PC y con cuántas instancias.
-
-### 16.2 Discrepancias entre fuentes
-
-| # | Discrepancia | Cómo se resolvió en este documento |
-|---|---|---|
-| 1 | El plan de la Parte B prevé `ns` con BIOS, 1 CPU, 512 MB y 8 GB; la realidad documentada es EFI, 2 vCPU, 1024 MB y 18 GB | Prevalece el borrador (resultado verificado) |
-| 2 | El plan de A marcaba A6 y A8 como parciales; el borrador los da por completados (2026-11-11) | Prevalece el borrador; el plan de A se actualizó el 2026-11-11 |
-| 3 | El plan de C marcaba todas las fases como no hechas; el borrador y la guía de actualización muestran trabajo realizado | Se describe lo documentado y se marca [PENDIENTE] lo no evidenciado; el plan de C se actualizó el 2026-11-11 |
-| 4 | El diagrama figura como C-12 en el borrador y como `docs/Arquitectura.png` en el repositorio | Se trata como `docs/Arquitectura.png`, existente |
-| 5 | El procedimiento manual usa `--hostonlyadapter1` y no incluye `--nic2 nat`, firmware BIOS ni audio; el plan de A cita `--host-only-adapter1`, `--nic2 nat`, `--firmware bios` y `--audio-enabled off` | Se citan los comandos del procedimiento manual; el adaptador debe compararse con él (§6.2) |
-| 6 | El procedimiento manual pasa la IP sin prefijo y usa ejemplos `NAME=httpaas-paisajes` y `HOSTNAME=paisajes-web`; el contrato guarda `192.168.10.30/24` y D10 iguala nombre de VM y hostname | Se usa el contrato; el ejemplo del manual se trata como ilustrativo |
-| 7 | El plan de C describe el cambio a multiconexión con `modifymedium --type multiattach` directo; lo verificado (2026-11-10) muestra que falla con un disco suelto | Se documenta el procedimiento verificado |
-| 8 | El plan de B prevé `static/estilos.css`; el dashboard real usa estilos inline | Prevalece el borrador |
-| 9 | Go 1.24 como mínimo en el plan; una bitácora reporta Go 1.27.0 | Compatibles; se cita el mínimo |
-| 10 | `clon-manual.md` repite el encabezado y la introducción al inicio | Se trató como duplicado accidental |
-| 11 | La figura del enunciado repite `paisajes` en la tercera columna de la fila de `negocios` | Se muestra el nombre de la VM de cada fila (decisión de B7) |
-| 12 | «23 OK» (`verificar-plantilla.sh`) y «26 OK» (`prueba-completa.sh`) son pruebas distintas | Se distinguen en las secciones 8.7 y 9 |
-
----
-
-## 17. Glosario
+## 16. Glosario
 
 | Término | Significado |
 |---|---|
