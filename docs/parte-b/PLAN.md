@@ -135,8 +135,8 @@ ssh httpaas@192.168.10.10 sudo -n cat /etc/shadow                         # rech
 **Verificación:** `make check` y `make vm-test` en verde.
 **Commit:** `feat(dns): implement dns port over ssh and httpaas-dns`
 
-### B6.5 Validación de la VM `ns` 🟡 (H2)
-> **Estado 2026-11-09:** `Comprobar` y sus pruebas están hechos (`60d11a4`); `TestVMComprobar` pasa contra `ns`. Falta solo el banner B-12, que necesita `web.Vista` (A) y el cableado de A7.
+### B6.5 Validación de la VM `ns` ✅ 2026-11-11 (banner B-12)
+> **Estado:** `Comprobar` y sus pruebas están hechos (`60d11a4`), `TestVMComprobar` pasa contra `ns` y el dashboard muestra el aviso (B-12).
 **Meta:** detectar si `ns` responde **antes** de que el usuario cree una VM que fallará un minuto después en el paso DNS, con un mensaje accionable en vez de un `error` a medias.
 1. En `internal/dns`, método `Comprobar(ctx) error` sobre el tipo concreto — **no se añade a `puertos.DNS`**, así que el contrato §4.2 no cambia y no hace falta acuerdo del equipo. Reutiliza lo de B6:
    - `Resolver(ctx, "ns")` debe devolver exactamente `cfg.DNS.IP`. Se pasa el label, no el FQDN, porque `Resolver` agrega el dominio (decisión de B6).
@@ -175,10 +175,10 @@ ssh httpaas@192.168.10.10 sudo -n cat /etc/shadow                         # rech
 📸 **B-09** — dashboard vacío. 📸 **B-10** — dos instancias, como en la figura. 📸 **B-11** — vista en el ancho de un celular.
 **Commit:** `feat(web): build the instances dashboard`
 
-### B8. Documento final 🟡 (H5)
-> **Estado 2026-11-09:** `docs/DOCUMENTO.md` tiene la estructura completa, la Parte B desarrollada (B0–B7, con problemas y decisiones) y los huecos marcados para A y C. Faltan sus secciones, las capturas y el banner B-12 (A7).
+### B8. Documento final ✅ 2026-11-11 (entregado)
+> **Estado:** el documento entregado incluye las capturas C-01 a C-11 y se envía junto con el repositorio. En el repositorio queda la versión de trabajo: `docs/DOCUMENTO.md` y `docs/DOCUMENTO.docx`.
 **Meta:** el documento que pide el enunciado, con todo el equipo.
-1. `docs/DOCUMENTO.md`, que se exporta a PDF. Estructura: portada → introducción y objetivos → arquitectura (diagrama de C) → secciones 2 a 5 según la tabla del §9 del plan general, con las capturas en orden → problemas encontrados, mejoras y trabajo futuro (desde `docs/problemas.md`) → conocimientos aprendidos (un párrafo de cada uno) → uso de IA → referencias.
+1. `docs/DOCUMENTO.md`, que se exporta a Word (`docs/DOCUMENTO.docx`) y PDF. Estructura: portada → introducción y objetivos → arquitectura (diagrama de C) → secciones 2 a 5 según la tabla del §9 del plan general, con las capturas en orden → problemas encontrados, mejoras y trabajo futuro (desde `docs/problemas.md`) → conocimientos aprendidos (un párrafo de cada uno) → uso de IA → referencias.
 2. Pedir a A y a C su sección en H4. Cada captura lleva un pie que dice qué se ve y por qué importa.
 3. Revisión cruzada: A y C leen el documento completo antes de H5.
 

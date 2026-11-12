@@ -28,6 +28,8 @@ El enunciado pide una **mini nube local**. El usuario entra a una web en Go, esc
 | R9 | Todo sin interacción del usuario (§5) | Parcial 2: SSH con `BatchMode`, sin contraseñas | Reutilizar ese enfoque (A) |
 | R10 | Código, documento con capturas paso a paso, problemas, mejoras y aprendizajes | Formato del Parcial 2 | Capturas por fase (todos) y documento consolidado (B) |
 
+> **Estado 2026-11-11.** Las tres partes están integradas en `main` (PR #11) y el flujo completo se verificó en modo real (26 OK, 0 fallas). La columna «Estado actual» conserva el punto de partida del plan; el estado final por fase y su evidencia están en el [documento del repositorio](DOCUMENTO.md) y en el plan de cada parte. La versión entregada del documento, con las capturas C, se envía aparte.
+
 **Recursos del host (Cristhian):** 15 GB de RAM y ~13 GB libres en disco. Cada instancia usa 512 MB de RAM, y su disco diferencial empieza casi vacío y crece con lo que la VM escribe (se mide en C6). Por eso hay un **máximo de 3 instancias simultáneas** (configurable).
 
 **Problemas ya detectados en el host (hay que resolverlos en H0):**
@@ -367,7 +369,7 @@ La resolución de `*.cloud.local` en el host (el problema de `nsswitch`) la resu
 
 ## 9. Capturas para el documento
 
-El enunciado pide "capturas de pantalla paso a paso". Cada fase de cada plan tiene sus capturas numeradas (📸 `A-03`, `B-05`…). Se guardan en `docs/capturas/<código>.png` el mismo día en que se hace la fase. Si se dejan para el final, las VMs ya no estarán en ese estado.
+El enunciado pide "capturas de pantalla paso a paso". Cada fase de cada plan tiene sus capturas numeradas (📸 `A-03`, `B-05`…). Se guardan en `docs/capturas/<código>.png` el mismo día en que se hace la fase. Si se dejan para el final, las VMs ya no estarán en ese estado. Las capturas C-01 a C-11 se incluyeron en el documento entregado y no se copiaron al repositorio.
 
 | Sección del documento | Capturas |
 |---|---|

@@ -105,9 +105,9 @@ El "cerebro" de la nube: la webapp, la cola que crea, publica y elimina instanci
 📸 **A-04** — dashboard en modo simulado con una instancia en `creando`. 📸 **A-05** — error 422 mostrado en el formulario.
 **Commit:** `feat(web): serve dashboard and instance routes`
 
-### A6. Adaptador VirtualBox 🟡 pasos 1–5 hechos; falta el 6 (pasos 1–5 desde H1; paso 6 y verificación en cuanto C entregue `clon-manual.md`, a más tardar en H3)
+### A6. Adaptador VirtualBox ✅ 2026-11-11 (capturas A-06 a A-08)
 **Meta:** crear y borrar VMs reales a partir del disco multiconexión.
-> **Por qué en dos tiempos:** C6 y A6 caen en el mismo hito. Los pasos 1–5 son funciones puras con pruebas y no necesitan VMs, así que se adelantan. Cuando llegue `clon-manual.md`, solo hay que comparar los argumentos con ese documento y correr la prueba real.
+> **Por qué en dos tiempos:** C6 y A6 cayeron en el mismo hito. Los pasos 1–5 son funciones puras con pruebas y no necesitaban VMs, así que se adelantaron; la prueba real se hizo cuando C entregó `clon-manual.md`.
 1. `internal/vbox` implementa `Hipervisor` llamando a `VBoxManage` con `exec.CommandContext` y los argumentos separados, siguiendo **exactamente** los comandos de `clon-manual.md`:
    `createvm --name N --ostype Debian_64 --register` → `modifyvm N --memory M --cpus C --firmware bios --nic1 hostonly --host-only-adapter1 vboxnet0 --nic2 nat --audio-enabled off` → `storagectl N --name SATA --add sata --controller IntelAhci` → `storageattach N --storagectl SATA --port 0 --device 0 --type hdd --medium <disco_base>` → `guestproperty set` ×4 (§4.3) → `startvm N --type headless`.
 2. Si un paso de `Crear` falla después de `createvm`, se deshace con `unregistervm --delete`.
@@ -120,7 +120,7 @@ El "cerebro" de la nube: la webapp, la cola que crea, publica y elimina instanci
 📸 **A-06** — `VBoxManage list vms` con la instancia creada. 📸 **A-07** — `VBoxManage showhdinfo` del disco base mostrando su hijo diferencial. 📸 **A-08** — después de eliminar: la VM no está y el `.vdi` base sí.
 **Commit:** `feat(vbox): create and delete instances from the multiattach disk`
 
-### A7. Integración en `dev` ✅ código y pruebas contra `ns` (PR #6, 2026-11-10); falta la prueba con la plantilla real
+### A7. Integración ✅ en `dev` (PR #6, 2026-11-10) y en `main` (PR #11); flujo real verificado (A-09, A-10, A-16)
 **Meta:** que funcione de punta a punta con las piezas reales de B y C.
 1. Unir los PR de B (`internal/dns`, dashboard) y C (`internal/publicar`) en `dev`, resolver conflictos y correr `make check`.
 2. `main.go` real: `vbox` + `dns` + `publicar`. Llamar a `Reconciliar()` al arrancar.
@@ -130,10 +130,10 @@ El "cerebro" de la nube: la webapp, la cola que crea, publica y elimina instanci
 📸 **A-09** — formulario con `paisajes` y `paisajes.zip`. 📸 **A-10** — dashboard con la instancia `lista` y su enlace.
 **Commit:** `feat: wire real adapters into the http service`
 
-### A8. Prueba completa y cierre 🟡 script y README ✅ (17 OK en simulado); falta la ejecución real con la plantilla
+### A8. Prueba completa y cierre ✅ 2026-11-11 en el PC de A (26 OK, A-16); falta el resultado en los otros PC
 **Meta:** demostrar que todo funciona en los tres PCs.
 1. `scripts/prueba-completa.sh`: los 7 pasos del §10 del plan, con `curl` contra la webapp (incluye la cabecera `Origin`).
-2. Correrlo en los tres PCs y anotar el resultado en `docs/PRUEBA-COMPLETA.md`.
+2. Correrlo en los tres PCs y anotar el resultado en el §9 del [documento final](../DOCUMENTO.md).
 3. `README.md`: requisitos, preparación (enlaces a P1–P4 y B5), compilar, configurar y usar.
 4. Escribir la sección "Aplicación web de gestión" para el documento de B (½ página + capturas A-xx).
 

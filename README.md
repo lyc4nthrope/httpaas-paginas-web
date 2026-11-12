@@ -57,7 +57,7 @@ Los pasos están detallados, con su verificación, en el [§7 del plan](docs/PLA
    scripts/verificar-ns.sh           # 15 verificaciones de B1–B3
    ```
    También se puede reconstruir desde cero con `deploy/ns/instalar.sh` dentro de una Debian 13 nueva.
-5. **Disco de la plantilla Apache:** ⏳ *pendiente de la Parte C.* `ApacheServer.vdi` en modo multiconexión, preparado con `deploy/plantilla/instalar.sh` y el procedimiento de [docs/parte-c/PLAN.md](docs/parte-c/PLAN.md) (C1–C6) y [clon-manual.md](docs/parte-c/clon-manual.md).
+5. **Disco de la plantilla Apache:** `ApacheServer.vdi` en modo multiconexión, preparado con `deploy/plantilla/instalar.sh` y el procedimiento de [docs/parte-c/PLAN.md](docs/parte-c/PLAN.md) (C1–C6) y [clon-manual.md](docs/parte-c/clon-manual.md). Las capturas C-01 a C-11 están en el documento entregado, que se envía aparte del repositorio.
 6. **Que el navegador resuelva `*.cloud.local`:**
    - **Linux:** `sudo scripts/dns-host-linux.sh` (se deshace con `--undo`).
    - **Windows:** regla NRPT.
@@ -100,7 +100,7 @@ Abre `http://127.0.0.1:8080`. En Windows no hay `make`: usa `go build ./cmd/http
 3. Abre el enlace `http://<nombre>.cloud.local`. Se abre en una pestaña nueva.
 4. **Eliminar** borra la VM, su registro DNS y su llave SSH. El disco base no se toca.
 
-La app revisa `ns` cada 30 s. Si no responde, entrega un aviso con la forma de solucionarlo, que se quita solo cuando `ns` vuelve (fase B6.5). ⏳ *El dashboard lo mostrará cuando la plantilla incluya `{{with .DNSAviso}}`, pendiente de la Parte B.*
+La app revisa `ns` cada 30 s. Si no responde, el dashboard muestra un aviso con la forma de solucionarlo, que se quita solo cuando `ns` vuelve (B6.5; captura B-12).
 
 ## Probar
 
@@ -127,6 +127,6 @@ Reglas para quien programe en el proyecto (y para su asistente de IA): [AGENTS.m
 |---|---|
 | [docs/PLAN.md](docs/PLAN.md) | Plan general: requisitos, arquitectura, decisiones, contrato y cronograma |
 | [Parte A](docs/parte-a/PLAN.md) · [Parte B](docs/parte-b/PLAN.md) · [Parte C](docs/parte-c/PLAN.md) | El plan de cada parte, fase por fase, con su verificación |
-| [docs/DOCUMENTO.md](docs/DOCUMENTO.md) | Documento final (capturas, problemas, mejoras y aprendizajes) |
+| [docs/DOCUMENTO.md](docs/DOCUMENTO.md) · [versión Word](docs/DOCUMENTO.docx) | Documento del repositorio (versión previa a la entrega; la entregada, con las capturas C, va aparte) |
 | [docs/problemas.md](docs/problemas.md) | Problemas encontrados y cómo se resolvieron |
 | [docs/enunciado/](docs/enunciado/) | Enunciado del profesor |

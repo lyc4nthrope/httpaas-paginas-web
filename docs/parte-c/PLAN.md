@@ -43,10 +43,12 @@ La "imagen dorada" de la nube: una VM Apache que, al clonarse, se configura sola
 
 ## Fases
 
-### C0. Preparación ⬜ (H0)
+> **Estado 2026-11-11.** C0 está cumplida (red host-only y contrato) y C1–C8 están implementadas e integradas en `main` (`deploy/plantilla/`, `internal/publicar/` y el diagrama `docs/Arquitectura.png`). La evidencia por fase está en el documento entregado, que se envía aparte; en el repositorio solo quedan las capturas de A y B. Ver el Anexo B del [documento del repositorio](../DOCUMENTO.md).
+
+### C0. Preparación ✅ (H0; P-01 y contrato en `dev`)
 Hacer P1–P4 del [plan general §7](../PLAN.md#7-preparación-de-cada-pc-los-tres-h0). Revisar y aprobar el PR del contrato (A1).
 
-### C1. VM `apache-plantilla` base ⬜ (H1)
+### C1. VM `apache-plantilla` base 🟡 (H1)
 **Meta:** Debian 13 sin interfaz gráfica, con Apache y acceso por SSH con llaves.
 1. VM `apache-plantilla`: 1 CPU, 512 MB, disco **dinámico de 6 GB llamado `ApacheServer.vdi`**, **BIOS**, controlador **SATA (AHCI)** (D16). `nic1` host-only `vboxnet0`, `nic2` NAT.
 2. Instalar Debian 13: sin entorno gráfico, con "SSH server" y "standard system utilities".
@@ -63,7 +65,7 @@ Hacer P1–P4 del [plan general §7](../PLAN.md#7-preparación-de-cada-pc-los-tr
 📸 **C-01** — configuración de la VM (`VBoxManage showvminfo apache-plantilla | grep -E 'Firmware|Storage|NIC'`). 📸 **C-02** — página por defecto de Apache desde el navegador del host.
 **Commit:** `docs(plantilla): record base template vm setup`
 
-### C2. Guest Additions ⬜ (H1)
+### C2. Guest Additions 🟡 (H1)
 **Meta:** que la VM pueda leer los datos que le deja el host.
 1. `apt install build-essential linux-headers-$(uname -r) bzip2`.
 2. Host: `VBoxManage storageattach apache-plantilla --storagectl SATA --port 1 --device 0 --type dvddrive --medium additions`. VM: `mount /dev/sr0 /mnt && sh /mnt/VBoxLinuxAdditions.run --nox11` → reiniciar → quitar el disco de las Guest Additions.
@@ -80,7 +82,7 @@ VBoxManage guestproperty unset apache-plantilla /httpaas/hostname; VBoxManage gu
 📸 **C-03** — lectura y escritura de guest properties en ambas direcciones.
 Snapshot `c2-additions`.
 
-### C3. Servicio de primer arranque `httpaas-firstboot` ⬜ (H1) — la pieza más importante
+### C3. Servicio de primer arranque `httpaas-firstboot` 🟡 (H1) — la pieza más importante
 **Meta:** que un clon se convierta solo en `paisajes` con la IP `.30`.
 1. `deploy/plantilla/httpaas-firstboot` (bash):
    1. `get()` lee una propiedad con `VBoxControl --nologo guestproperty get` y reintenta hasta 30 s (el driver puede tardar en cargar).
@@ -100,7 +102,7 @@ Snapshot `c2-additions`.
 📸 **C-04** — `systemctl status httpaas-firstboot`. 📸 **C-05** — estado `listo` visto desde el host. 📸 **C-06** — página provisional con el `Host` correcto.
 **Commit:** `feat(plantilla): self-configure clones from guest properties on boot`
 
-### C4. Script de publicación `httpaas-publicar` ⬜ (H2)
+### C4. Script de publicación `httpaas-publicar` 🟡 (H2)
 **Meta:** desplegar un zip de forma segura y sin dejar el sitio a medias.
 1. `deploy/plantilla/httpaas-publicar ZIP`:
    1. El argumento debe coincidir con `^/home/httpaas/subidas/[a-zA-Z0-9-]{8,64}\.zip$` y existir. Si no, código 2.
@@ -116,7 +118,7 @@ Snapshot `c2-additions`.
 📸 **C-07** — publicación correcta. 📸 **C-08** — rechazo de `zipslip.zip`.
 **Commit:** `feat(plantilla): publish user zips atomically with validation`
 
-### C5. Script `instalar.sh` y disco multiconexión ⬜ (H2)
+### C5. Script `instalar.sh` y disco multiconexión 🟡 (H2)
 **Meta:** congelar la plantilla y dejar el procedimiento reproducible.
 1. `deploy/plantilla/instalar.sh`: aplica C1.4–C4.2 (paquetes, usuario, llaves, sshd, scripts, unit, sudoers) en una Debian 13 recién instalada. Puede correrse dos veces. Las Guest Additions (C2) quedan como paso manual documentado.
 2. Limpiar la plantilla: `apt clean`, borrar `/etc/httpaas/aplicado` si existe, `history -c` → `poweroff`.
@@ -135,8 +137,8 @@ Snapshot `c2-additions`.
 📸 **C-09** — `showmediuminfo` con `Type: multiattach`.
 **Commit:** `feat(plantilla): add reproducible install script for the template`
 
-### C6. Clonación manual y especificación para A ⬜ (H2, lo primero del día) — **bloquea la prueba real de A6**
-> Avisar a Cristhian en cuanto `clon-manual.md` esté en `dev`: A6 no puede probar con VMs reales sin este documento.
+### C6. Clonación manual y especificación para A 🟡 (H2, lo primero del día) — **habilitó la prueba real de A6**
+> Se avisó a Cristhian cuando `clon-manual.md` estuvo en `dev`; A6 necesitaba este documento para probar con VMs reales.
 **Meta:** probar a mano la secuencia exacta que A va a automatizar.
 1. `docs/parte-c/clon-manual.md`: los comandos uno por uno (`createvm`, `modifyvm`, `storagectl`, `storageattach`, `guestproperty set` ×4, `startvm --type headless`, esperar `listo`, `controlvm poweroff`, `unregistervm --delete`) y la salida esperada de cada uno.
 2. Ejecutarlos para `paisajes` (`.30`) y `negocios` (`.31`) **al mismo tiempo**.
@@ -147,7 +149,7 @@ Snapshot `c2-additions`.
 📸 **C-10** — las dos VMs corriendo, con sus discos diferenciales en `VBoxManage list hdds`. 📸 **C-11** — después de eliminar, el disco base intacto.
 **Commit:** `docs(plantilla): specify the manual clone procedure`
 
-### C7. Adaptador Go `internal/publicar` ⬜ (H3)
+### C7. Adaptador Go `internal/publicar` 🟡 (H3)
 **Meta:** que la webapp valide y publique el zip.
 1. `ValidarZip(ruta string, lim Limites) (Resumen, error)`, una función pura con `archive/zip`. Aplica las mismas reglas que C4.1.3–4, y además rechaza las entradas cuyo `filepath.IsLocal` sea falso. `Resumen{Archivos int, Bytes int64, Raiz string}`. Los errores son legibles para el usuario ("El zip contiene rutas peligrosas: ../../etc/passwd").
 2. `Publicador.Publicar(host, ip, zip)`: `id := hex aleatorio` → `ex.CopyTo(zip, "/home/httpaas/subidas/<id>.zip")` → `ex.Run(sudo /usr/local/sbin/httpaas-publicar <ruta>)`. El código 2 se convierte en un error de validación y el 3 en un error de servidor → verificación `GET http://<ip>/` con `Host: <host>.cloud.local` → 200.
@@ -156,7 +158,7 @@ Snapshot `c2-additions`.
 **Verificación:** `make check` y `make vm-test` en verde.
 **Commit:** `feat(publicar): validate and deploy user zips to instances`
 
-### C8. Diagrama y material de demostración ⬜ (H4)
+### C8. Diagrama y material de demostración 🟡 (H4)
 1. Diagrama de arquitectura (draw.io o Excalidraw) con lo mismo del §2 del plan general: host, webapp, red, `ns`, instancias, disco multiconexión y flechas de los tres flujos. Exportar `docs/arquitectura.png` y guardar también el archivo fuente.
 2. Escribir para B la sección "Plantilla Apache y disco multiconexión" (½ página + capturas C-xx).
 
