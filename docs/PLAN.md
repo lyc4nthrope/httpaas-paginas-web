@@ -166,6 +166,8 @@ type Hipervisor interface {
     // EsperarLista bloquea hasta que /httpaas/estado == "listo" o vence ctx; si es "error:*", devuelve ese error.
     EsperarLista(ctx context.Context, nombre string) error
     // Eliminar apaga (si está encendida) y borra la VM con su disco diferencial. Si no existe, no es error.
+    // Solo borra VMs que creó el servicio (tienen la guest property /httpaas/hostname = nombre);
+    // una VM ajena con el mismo nombre no se toca, y eso tampoco es error.
     Eliminar(ctx context.Context, nombre string) error
     // Listar devuelve los nombres de las VMs registradas en VirtualBox.
     Listar(ctx context.Context) ([]string, error)
@@ -242,6 +244,8 @@ En Windows, `red_hostonly` es `VirtualBox Host-Only Ethernet Adapter` y `vboxman
 ### 4.6 Estados de una instancia
 
 `creando` → `lista` → (`publicando` → `lista`) → `eliminando` → (se borra). Cualquier paso puede terminar en `error`. Una instancia que está en el JSON pero no existe en VirtualBox pasa a `perdida`. Desde `error` y `perdida` solo se puede **Eliminar**.
+
+Mientras una instancia está en `creando`, `publicando` o `eliminando`, el trabajador de la cola es su dueño: no se acepta otra operación sobre ella hasta que termine. Así una publicación nunca deshace un borrado.
 
 ---
 
@@ -370,7 +374,7 @@ El enunciado pide "capturas de pantalla paso a paso". Cada fase de cada plan tie
 | 1. Arquitectura y red | P-01, C-12 (diagrama) |
 | 2. Servidor DNS Bind9 | B-01 … B-08 |
 | 3. Plantilla Apache y disco multiconexión | C-01 … C-11 |
-| 4. Aplicación web de gestión | A-01 … A-10, B-09 … B-11 |
+| 4. Aplicación web de gestión | A-01 … A-10, B-09 … B-12 |
 | 5. Prueba de punta a punta | A-11 … A-16 |
 | 6. Problemas, mejoras y trabajo futuro | — (cada uno anota en `docs/problemas.md` cuando le pasa algo) |
 | 7. Aprendizajes | — (cada uno escribe su párrafo en H5) |

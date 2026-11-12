@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+# Register and remove platform hosts in the cloud.local zones.
+#
+# Installed as /usr/local/sbin/httpaas-dns and the only command the httpaas user
+# may run as root without a password (see deploy/ns/sudoers). The Go webapp calls
+# it over SSH: `sudo /usr/local/sbin/httpaas-dns agregar <host> <ip>`.
+#
+# Updates go through `nsupdate -l` (RFC 2136) against the running daemon, never by
+# rewriting the zone files: named owns a journal and the file on disk is not the
+# live state (docs/PLAN.md, D6).
+set -euo pipefail
+
+ZONE="cloud.local"
+REVERSE_ZONE="10.168.192.in-addr.arpa"
+SERVER="127.0.0.1"
+TTL=300
+
+# A hostname is a single DNS label: no dots, so it cannot escape the zone.
+HOST_RE='^[a-z][a-z0-9-]{1,30}[a-z0-9]$'
+# Last octet 1..254: excludes the network (.0) and broadcast (.255) addresses.
+IP_RE='^192\.168\.10\.([1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-4])$'
+# Infrastructure addresses fixed by the plan (docs/PLAN.md, section 2): the host,
+# the DNS VM and the template. They are inside IP_RE but never allocatable.
+IP_RESERVADAS=(192.168.10.1 192.168.10.10 192.168.10.20)
+
+die() {
+	echo "httpaas-dns: $*" >&2
+	exit 1
+}
+
+usage() {
+	cat >&2 <<'EOF'
+usage: httpaas-dns agregar <host> <ip>
+       httpaas-dns quitar <host>
+       httpaas-dns listar
+EOF
+	exit 2
+}
+
+validar_host() {
+	local host="$1"
+	# ns.cloud.local is the DNS server itself; letting a user overwrite it would
+	# take the whole platform down. Checked first so the message is accurate.
+	[[ "$host" != "ns" ]] || die "host 'ns' is reserved for the DNS server"
+	[[ "$host" =~ $HOST_RE ]] || die "invalid host: '$host'"
+}
+
+validar_ip() {
+	local ip="$1" r
+	[[ "$ip" =~ $IP_RE ]] || die "invalid ip: '$ip'"
+	# .10 carries `10 PTR ns.cloud.local.` in the reverse zone: updating it would
+	# delete the DNS server's own PTR while the verification below still succeeds.
+	for r in "${IP_RESERVADAS[@]}"; do
+		[[ "$ip" != "$r" ]] || die "ip '$r' is reserved for the infrastructure"
+	done
+}
+
+ultimo_octeto() {
+	echo "${1##*.}"
+}
+
+# Query the local daemon and print only the answer.
+dig_short() {
+	dig "@$SERVER" +short "$@"
+}
+
+agregar() {
+	local host="$1" ip="$2" n got_ip got_ptr
+	validar_host "$host"
+	validar_ip "$ip"
+	n="$(ultimo_octeto "$ip")"
+
+	# One DNS UPDATE message belongs to a single zone, so the A and the PTR need
+	# separate zone blocks with their own `send`; mixing them fails with NOTZONE.
+	# The `delete` before each `add` makes re-adding an existing host idempotent.
+	nsupdate -l <<EOF
+zone $ZONE
+update delete $host.$ZONE A
+update add $host.$ZONE $TTL A $ip
+send
+zone $REVERSE_ZONE
+update delete $n.$REVERSE_ZONE PTR
+update add $n.$REVERSE_ZONE $TTL PTR $host.$ZONE.
+send
+EOF
+
+	# The exit code must mean "the record is there", not "nsupdate did not
+	# complain". A silent mismatch would leave the webapp reporting success.
+	got_ip="$(dig_short "$host.$ZONE")"
+	got_ptr="$(dig_short -x "$ip")"
+	[[ "$got_ip" == "$ip" ]] || die "verification failed: $host.$ZONE -> '$got_ip', expected '$ip'"
+	[[ "$got_ptr" == "$host.$ZONE." ]] || die "verification failed: $ip PTR -> '$got_ptr', expected '$host.$ZONE.'"
+
+	echo "added $host.$ZONE -> $ip"
+}
+
+quitar() {
+	local host="$1" ip n
+	validar_host "$host"
+
+	# The PTR is indexed by IP, so read the current address before deleting the A.
+	ip="$(dig_short "$host.$ZONE" | head -n1)"
+	if [[ -z "$ip" ]]; then
+		echo "not found: $host.$ZONE"
+		return 0
+	fi
+	n="$(ultimo_octeto "$ip")"
+
+	nsupdate -l <<EOF
+zone $ZONE
+update delete $host.$ZONE A
+send
+zone $REVERSE_ZONE
+update delete $n.$REVERSE_ZONE PTR
+send
+EOF
+
+	echo "removed $host.$ZONE"
+}
+
+listar() {
+	# AXFR asks for the whole zone, which is the only way to enumerate it.
+	# Requires `allow-transfer { localhost; };` on the zone definition.
+	# The suffix is stripped from the name field, not from the whole line: the
+	# line ends with the IP, so an end-anchored sed would never match.
+	dig "@$SERVER" "$ZONE" AXFR |
+		awk -v zone="$ZONE" '$4 == "A" { name = $1; sub("\\." zone "\\.$", "", name); print name, $5 }'
+}
+
+[[ $# -ge 1 ]] || usage
+
+case "$1" in
+agregar)
+	[[ $# -eq 3 ]] || usage
+	agregar "$2" "$3"
+	;;
+quitar)
+	[[ $# -eq 2 ]] || usage
+	quitar "$2"
+	;;
+listar)
+	[[ $# -eq 1 ]] || usage
+	listar
+	;;
+*)
+	usage
+	;;
+esac

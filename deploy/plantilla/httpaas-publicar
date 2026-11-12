@@ -1,0 +1,144 @@
+#!/bin/bash
+set -euo pipefail
+
+ZIP_PATH="${1:-}"
+
+# 1. Validar nombre y ruta del archivo ZIP (Código 2)
+if [ -z "$ZIP_PATH" ] || ! [[ "$ZIP_PATH" =~ ^/home/httpaas/subidas/[a-zA-Z0-9-]{8,64}\.zip$ ]] || [ ! -f "$ZIP_PATH" ]; then
+    echo "Error: archivo zip invalido o no existe." >&2
+    exit 2
+fi
+
+# 2. Validar que la instancia ya completo su primer arranque (Código 3)
+APLICADO_FILE="/etc/httpaas/aplicado"
+if [ ! -f "$APLICADO_FILE" ]; then
+    echo "Error: la instancia no ha completado su primer arranque." >&2
+    exit 3
+fi
+
+H=$(awk '{print $1}' "$APLICADO_FILE" 2>/dev/null || true)
+if [ -z "$H" ] || ! [[ "$H" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]]; then
+    echo "Error: hostname invalido en aplicado." >&2
+    exit 3
+fi
+
+# --- Punto 8: Mitigación TOCTOU ---
+# Copiar el ZIP a una carpeta temporal exclusiva de root antes de validar/descomprimir
+WORK_DIR=$(mktemp -d /tmp/httpaas-pub-XXXXXX)
+SAFE_ZIP="$WORK_DIR/target.zip"
+TMP_DIR="$WORK_DIR/extracted"
+mkdir -p "$TMP_DIR"
+
+cp "$ZIP_PATH" "$SAFE_ZIP"
+
+# --- Punto 7: Trap para limpieza garantizada de ZIP y directorio de trabajo ---
+cleanup() {
+    rm -rf "$WORK_DIR"
+    rm -f "$ZIP_PATH"
+}
+trap cleanup EXIT
+
+# 3. Inspeccionar el ZIP copiado en entorno root seguro (Código 2)
+ENTRIES=$(unzip -Z1 "$SAFE_ZIP" 2>/dev/null) || {
+    echo "Error: archivo zip corrupto o invalido." >&2
+    exit 2
+}
+
+while IFS= read -r entry; do
+    [ -z "$entry" ] && continue
+    if [[ "$entry" =~ ^/ ]] || [[ "$entry" =~ \.\. ]]; then
+        echo "Error: ruta peligrosa o traversal detectada en el zip." >&2
+        exit 2
+    fi
+done <<< "$ENTRIES"
+
+if unzip -Z "$SAFE_ZIP" 2>/dev/null | grep -q "^l"; then
+    echo "Error: el zip contiene enlaces simbolicos." >&2
+    exit 2
+fi
+
+SUMMARY=$(unzip -Zt "$SAFE_ZIP" 2>/dev/null || true)
+NUM_FILES=$(echo "$SUMMARY" | awk '{print $1}')
+TOTAL_BYTES=$(echo "$SUMMARY" | awk '{print $3}')
+
+if [ -z "$NUM_FILES" ] || ! [[ "$NUM_FILES" =~ ^[0-9]+$ ]] || [ "$NUM_FILES" -gt 2000 ]; then
+    echo "Error: mas de 2000 archivos en el zip." >&2
+    exit 2
+fi
+
+if [ -z "$TOTAL_BYTES" ] || ! [[ "$TOTAL_BYTES" =~ ^[0-9]+$ ]] || [ "$TOTAL_BYTES" -gt 209715200 ]; then
+    echo "Error: tamano descomprimido mayor a 200MB." >&2
+    exit 2
+fi
+
+# 4. Descompresión atómica temporal (Código 2)
+if ! unzip -q "$SAFE_ZIP" -d "$TMP_DIR" 2>/dev/null; then
+    echo "Error: fallo al descomprimir el archivo zip." >&2
+    exit 2
+fi
+
+CONTENT_ROOT="$TMP_DIR"
+if [ ! -f "$CONTENT_ROOT/index.html" ]; then
+    ITEMS=("$TMP_DIR"/*)
+    if [ ${#ITEMS[@]} -eq 1 ] && [ -d "${ITEMS[0]}" ]; then
+        SUBDIR="${ITEMS[0]}"
+        if [ -f "$SUBDIR/index.html" ]; then
+            CONTENT_ROOT="$SUBDIR"
+        fi
+    fi
+fi
+
+if [ ! -f "$CONTENT_ROOT/index.html" ]; then
+    echo "Error: no se encontro index.html en la raiz del sitio." >&2
+    exit 2
+fi
+
+FILE_COUNT=$(find "$CONTENT_ROOT" -type f | wc -l | tr -d ' ')
+
+# 5. Reemplazo atómico de sitio con Rollback (Código 3)
+TARGET_DIR="/var/www/$H"
+OLD_DIR="/var/www/.old-$H"
+STAGE_DIR="/var/www/.tmp-$H-$$"
+
+chown -R www-data:www-data "$CONTENT_ROOT"
+find "$CONTENT_ROOT" -type d -exec chmod 0755 {} +
+find "$CONTENT_ROOT" -type f -exec chmod 0644 {} +
+
+rm -rf "$STAGE_DIR"
+mv "$CONTENT_ROOT" "$STAGE_DIR"
+rm -rf "$OLD_DIR"
+
+MOVED_OLD=0
+if [ -d "$TARGET_DIR" ]; then
+    if mv "$TARGET_DIR" "$OLD_DIR"; then
+        MOVED_OLD=1
+    else
+        echo "Error: fallo al respaldar el directorio actual." >&2
+        rm -rf "$STAGE_DIR"
+        exit 3
+    fi
+fi
+
+if ! mv "$STAGE_DIR" "$TARGET_DIR"; then
+    echo "Error: fallo al reemplazar el directorio del sitio." >&2
+    if [ $MOVED_OLD -eq 1 ] && [ -d "$OLD_DIR" ]; then
+        mv "$OLD_DIR" "$TARGET_DIR"
+    fi
+    exit 3
+fi
+
+# Punto 7: Recarga de Apache con Rollback automático si falla el configtest o reload
+if ! apache2ctl configtest >/dev/null 2>&1 || ! systemctl reload apache2 >/dev/null 2>&1; then
+    echo "Error: fallo al recargar apache, revirtiendo cambios." >&2
+    rm -rf "$TARGET_DIR"
+    if [ $MOVED_OLD -eq 1 ] && [ -d "$OLD_DIR" ]; then
+        mv "$OLD_DIR" "$TARGET_DIR"
+    fi
+    exit 3
+fi
+
+rm -rf "$OLD_DIR"
+
+# 6. Éxito (El trap de EXIT eliminará $WORK_DIR y $ZIP_PATH automáticamente)
+echo "publicado $FILE_COUNT archivos"
+exit 0
